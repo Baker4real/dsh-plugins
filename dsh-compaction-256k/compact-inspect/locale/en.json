@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Compact Inspect queries",
+    "description": "Omits large descriptions, referenced types, and topology metadata from Service and Slots queries."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "include": ["*.md", "docs/**/*.md"],
+  "exclude": ["AGENTS.md", "CLAUDE.md", "node_modules/**", ".scratch/**"],
+  "allowed_types": ["wiki-chapter", "adr", "index", "reference", "report", "readme"],
+  "link_validation": "warn"
+}

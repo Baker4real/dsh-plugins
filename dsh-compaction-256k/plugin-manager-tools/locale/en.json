@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Plugin list filters",
+    "description": "Adds exact-name filtering and row-free bundle summaries to plugin_manager."
+  }
+}

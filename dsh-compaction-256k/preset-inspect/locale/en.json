@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Preset nested inspect",
+    "description": "Reads nested Agent preset plugin rows, activation diagnostics, and effective declared configs."
+  }
+}

@@ -1,0 +1,3 @@
+- insert:
+    - id: daily-update-guards
+      name: "@local/daily-update-guards"

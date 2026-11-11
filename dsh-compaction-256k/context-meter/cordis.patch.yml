@@ -1,0 +1,3 @@
+- insert:
+    - id: compaction-context-meter
+      name: "@local/dsh-compaction-context-meter"

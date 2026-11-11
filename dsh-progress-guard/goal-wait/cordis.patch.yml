@@ -1,0 +1,6 @@
+- insert:
+    - id: goal-wait
+      name: '@local/dsh-goal-wait'
+      config:
+        receiptRoots:
+          - 'D:/agents/run-evidence/dsh-goal-wait-receipts'

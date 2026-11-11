@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Host 源码检索",
+    "description": "在 DSH 源码根内按正则检索单个文件，支持 app.asar，并限制文件大小与匹配数量。"
+  }
+}

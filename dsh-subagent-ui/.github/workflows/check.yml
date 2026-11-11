@@ -1,0 +1,54 @@
+name: check
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.5
+          run_install: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Check build and types
+        run: pnpm run check
+      - name: Test real manager rendering
+        run: node test/render.test.mjs
+      - name: Test smoke runtime planning and owned cleanup
+        run: node --test test/smoke-runtime.test.mjs test/owned-processes.test.mjs
+      - name: Test CSS declaration diagnostics
+        run: node --test test/verify-build.test.mjs
+
+  native-titlebar:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.5
+          run_install: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Test native Windows titlebar hit testing
+        run: pnpm run test:native-titlebar

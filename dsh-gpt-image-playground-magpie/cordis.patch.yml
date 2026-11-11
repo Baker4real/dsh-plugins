@@ -1,0 +1,6 @@
+# One loader row. gatewayUrl defaults to magpie's local gateway,
+# http://127.0.0.1:3425/v1; override it in the profile's cordis.patch.yml.
+- insert:
+    - id: gpt-image-playground-magpie
+      name: dsh-gpt-image-playground-magpie
+      config: {}

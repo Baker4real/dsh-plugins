@@ -1,0 +1,29 @@
+{
+  "name": "@local/dsh-progress-guard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Prevent repeated progress updates and fold identical intermediate replies while preserving the original messages and tools.",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": ["index.js", "policy.js", "client.js", "cordis.patch.yml", "locale/*.json", "icon.svg", "scripts/*.mjs", "tests/*.test.js", "tests/fixtures/*.json"],
+  "scripts": {
+    "check": "node scripts/check.mjs"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-llm": "0.2.2-rc.1",
+    "zod": "^4.4.3"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": ["@deepseek-ai/dsh-client-ui-chat"]
+    }
+  }
+}

@@ -1,56 +1,38 @@
-# Dependencies
-node_modules/
-.pnpm-store/
+# Dependencies and tool caches
+**/node_modules/
+**/.pnpm-store/
+**/.cache/
+**/.okf-cache/
+**/__pycache__/
+**/*.pyc
 
-# Build and test output
-dist/
-build/
-out/
-coverage/
-.nyc_output/
-*.tsbuildinfo
-
-# Runtime logs and local data
-*.log
-logs/
-.tmp/
-tmp/
-.cache/
+# Runtime state and private evidence
+**/.dsh-plugin-smoke/
 **/.dsh-graph/
+**/.scratch/
+**/run-evidence/
+**/test-results/
+**/playwright-report/
+**/coverage/
+**/*.log
+**/*.out.txt
+**/*.err.txt
+**/*.run.json
 
-# Environment files (keep committed examples/templates)
-.env
-.env.*
-!.env.example
-!.env.template
-
-# OS metadata
-.DS_Store
-Thumbs.db
-
-# Editor and IDE settings
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Local test artifacts
-playwright-report/
-test-results/
-.dsh-plugin-smoke/
-.worktrees/
-
-# Lockfile (published npm lib with peer-only deps; keep the tree clean for git-checks)
-pnpm-lock.yaml
-
-
-# --- secrets: never commit (added by DSH secret audit) ---
-.credentials.yaml
+# Secrets and local configuration
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.template
 **/.credentials.yaml
-.env
-.env.*
-!.env.example
-!.env.template
-*.bak
-*.back
+**/*.pem
+**/*.key
+**/auth.json
+**/credentials.json
+
+# Local editor and OS files
+**/.DS_Store
+**/Thumbs.db
+**/*.tsbuildinfo
+**/.idea/
+**/.vscode/

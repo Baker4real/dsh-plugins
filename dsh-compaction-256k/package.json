@@ -1,0 +1,74 @@
+{
+  "name": "@local/dsh-compaction-256k",
+  "version": "1.5.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node --check index.js && node --check preset-inspect.js && node --check source-inspect.js && node --check plugin-manager-tools.js && node --check compact-inspect.js && node --check local-bundle-check.js && node --check scripts/check-local-bundle.mjs && node --check scripts/dsh-inspect.mjs && node --check scripts/run-check-process.mjs && node --check scripts/dsh-desktop.mjs && node --check smoke/index.js && node --check smoke/ui-smoke.mjs && node --check smoke/opener/index.js && node --check context-meter/index.js && node --check context-meter/client.js && node --check daily-update-guards/index.js && node --check daily-update-guards/schedule-tools.js && node --check daily-update-guards/pwsh-guard.js && node --test tests/*.test.js && node --test daily-update-guards/tests/*.test.js"
+  },
+  "description": "Configurable official compaction thresholds, preset and Host source inspection, and bounded plugin-list tooling.",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-app-boot": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-compaction": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-compaction-basic": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-sandbox": "^0.2.2-rc.1",
+    "@deepseek-ai/schemastery": "^3.19.0",
+    "@deepseek-ai/dsh-tools": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-util-values": "^0.2.2-rc.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-app-boot": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-compaction": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-compaction-basic": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-sandbox": "0.2.2-rc.1",
+    "@deepseek-ai/schemastery": "3.19.0",
+    "@deepseek-ai/dsh-tools": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-util-values": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-session": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-session-projection": "0.2.2-rc.1",
+    "zod": "4.4.3"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./preset-inspect": "./preset-inspect.js",
+    "./source-inspect": "./source-inspect.js",
+    "./plugin-manager-tools": "./plugin-manager-tools.js",
+    "./compact-inspect": "./compact-inspect.js",
+    "./compact-inspect/locale/*.json": "./compact-inspect/locale/*.json",
+    "./compact-inspect/icon": "./icon.svg",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./preset-inspect/locale/*.json": "./preset-inspect/locale/*.json",
+    "./preset-inspect/icon": "./icon.svg",
+    "./source-inspect/locale/*.json": "./source-inspect/locale/*.json",
+    "./source-inspect/icon": "./icon.svg",
+    "./plugin-manager-tools/locale/*.json": "./plugin-manager-tools/locale/*.json",
+    "./plugin-manager-tools/icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "preset-inspect.js",
+    "source-inspect.js",
+    "plugin-manager-tools.js",
+    "compact-inspect.js",
+    "compact-inspect/locale/*.json",
+    "local-bundle-check.js",
+    "scripts/check-local-bundle.mjs",
+    "scripts/dsh-inspect.mjs",
+    "scripts/run-check-process.mjs",
+    "scripts/dsh-desktop.mjs",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "preset-inspect/locale/*.json",
+    "source-inspect/locale/*.json",
+    "plugin-manager-tools/locale/*.json",
+    "icon.svg"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

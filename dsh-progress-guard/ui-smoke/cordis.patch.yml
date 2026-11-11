@@ -1,0 +1,3 @@
+- insert:
+    - id: progress-guard-ui-check
+      name: '@local/dsh-progress-guard-ui-check'

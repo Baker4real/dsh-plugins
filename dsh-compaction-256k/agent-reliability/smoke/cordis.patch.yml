@@ -1,0 +1,3 @@
+- insert:
+    - id: agent-reliability-smoke
+      name: '@local/dsh-agent-reliability-smoke'

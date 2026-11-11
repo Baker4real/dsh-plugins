@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Compaction remaining meter",
+    "description": "Shows the current session's remaining automatic-compaction capacity in the composer dock."
+  }
+}

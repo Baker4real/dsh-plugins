@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Host source search",
+    "description": "Search one file inside the DSH source root, including app.asar, with bounded file size and matches."
+  }
+}

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Daily update guards">
+  <rect width="64" height="64" rx="14" fill="#172554"/>
+  <path d="M32 10 51 17v14c0 12-7 20-19 24C20 51 13 43 13 31V17z" fill="#1e40af" stroke="#93c5fd" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M22 32l7 7 14-16" fill="none" stroke="#facc15" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

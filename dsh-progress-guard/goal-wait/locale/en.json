@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Goal human-action wait",
+    "description": "Keep goals while waiting for a human action, stop automatic rounds, and resume once on a direct human reply or a bounded registered receipt."
+  }
+}

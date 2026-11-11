@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "插件清单摘要过滤",
+    "description": "为 plugin_manager 增加按名称过滤和不带 rows 的 bundle 摘要模式。"
+  }
+}

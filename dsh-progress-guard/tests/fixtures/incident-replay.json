@@ -1,0 +1,36 @@
+{
+  "messages": [
+    {
+      "id": "assistant-1", "role": "assistant",
+      "content": [
+        { "type": "text", "text": "已定位当前页面的重复进度问题，接下来检查实际数据和工具返回，并在修复后核对界面状态，确保原始消息与工具调用完整保留。" },
+        { "type": "tool-call", "id": "call-1", "name": "fixture-read", "arguments": "{}" }
+      ],
+      "source": { "provider": "fixture", "model": "fixture", "replayState": { "response": { "kind": "pi-ai", "version": 2, "provider": "fixture", "model": "fixture", "api": "openai-completions", "stopReason": "toolUse" }, "blocks": [{ "type": "text" }, { "type": "tool-call" }] } }
+    },
+    { "id": "tool-1", "role": "tool", "source": { "callId": "call-1" }, "content": [{ "type": "text", "text": "fixture: tool completed" }] },
+    {
+      "id": "assistant-2", "role": "assistant",
+      "content": [
+        { "type": "text", "text": "已定位当前页面的重复进度问题，接下来检查实际数据和工具返回，并在修复后核对界面状态，确保原始消息与工具调用完整保留。" },
+        { "type": "tool-call", "id": "call-2", "name": "fixture-read", "arguments": "{}" }
+      ],
+      "source": { "provider": "fixture", "model": "fixture", "replayState": { "response": { "kind": "pi-ai", "version": 2, "provider": "fixture", "model": "fixture", "api": "openai-completions", "stopReason": "toolUse" }, "blocks": [{ "type": "text" }, { "type": "tool-call" }] } }
+    },
+    { "id": "tool-2", "role": "tool", "source": { "callId": "call-2" }, "content": [{ "type": "text", "text": "fixture: tool completed" }] },
+    {
+      "id": "assistant-tools-only", "role": "assistant",
+      "content": [{ "type": "tool-call", "id": "call-3", "name": "fixture-plan", "arguments": "{}" }],
+      "source": { "provider": "fixture", "model": "fixture", "replayState": { "response": { "kind": "pi-ai", "version": 2, "provider": "fixture", "model": "fixture", "api": "openai-completions", "stopReason": "toolUse" }, "blocks": [{ "type": "tool-call" }] } }
+    },
+    { "id": "tool-3", "role": "tool", "source": { "callId": "call-3" }, "content": [{ "type": "text", "text": "fixture: tool completed" }] },
+    {
+      "id": "assistant-3", "role": "assistant",
+      "content": [
+        { "type": "text", "text": "已定位当前页面的重复进度问题，接下来检查实际数据和工具返回，并在修复后核对界面状态，确保原始消息与工具调用完整保留。" },
+        { "type": "tool-call", "id": "call-4", "name": "fixture-read", "arguments": "{}" }
+      ],
+      "source": { "provider": "fixture", "model": "fixture", "replayState": { "response": { "kind": "pi-ai", "version": 2, "provider": "fixture", "model": "fixture", "api": "openai-completions", "stopReason": "toolUse" }, "blocks": [{ "type": "text" }, { "type": "tool-call" }] } }
+    }
+  ]
+}

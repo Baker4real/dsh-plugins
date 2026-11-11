@@ -1,0 +1,33 @@
+{
+  "name": "@local/daily-update-guards",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Compact daily-update schedule prompts and reject unsafe checked PowerShell command strings.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node --check index.js && node --check schedule-tools.js && node --check pwsh-guard.js && node --check tests/fixtures.js && node --check tests/schedule-tools.test.js && node --check tests/pwsh-guard.test.js && node --test tests/*.test.js"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "schedule-tools.js",
+    "pwsh-guard.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "^0.2.2-rc.1"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

@@ -1,0 +1,3 @@
+- insert:
+    - id: compaction-ui-opener
+      name: "@local/dsh-compaction-ui-opener"

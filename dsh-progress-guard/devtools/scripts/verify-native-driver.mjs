@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { join } from 'node:path';
+import { NativeHitTester } from '../desktop-native.js';
+
+if (process.platform !== 'win32') throw new Error('WINDOWS_NATIVE_CHECK_REQUIRED');
+const resources = process.env.DSH_CHECK_RESOURCES ?? process.resourcesPath;
+const require = createRequire(join(resources, 'app.asar', 'dsh', 'package.json'));
+const koffi = require('koffi');
+const user32 = koffi.load('user32.dll');
+const desktop = user32.func('uintptr_t GetDesktopWindow()')();
+const handle = String(desktop);
+const processIdOf = user32.func('uint32 GetWindowThreadProcessId(uintptr_t hwnd, _Out_ uint32_t* processId)');
+const output = [0];
+processIdOf(desktop, output);
+const result = new NativeHitTester({ resourcesPath: resources, allowedProcessIds: [output[0]], cache: {} }).hitTest({ handle, x: 20, y: 20, devicePixelRatio: 1 });
+assert.equal(result.processId, output[0]);
+assert.ok(Number.isInteger(result.hitTest));
+assert.equal(result.screenPoint.x, 20);
+assert.equal(result.screenPoint.y, 20);
+assert.ok(/^[0-9]+$/u.test(result.hitWindow));
+console.log(JSON.stringify({ status: 'passed', capability: 'real Win32 Koffi driver initialization, coordinate conversion and bounded native hit test', hitName: result.hitName }));

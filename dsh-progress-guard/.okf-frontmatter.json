@@ -1,0 +1,5 @@
+{
+  "include": ["*.md", "docs/**/*.md"],
+  "exclude": ["AGENTS.md", "CLAUDE.md", "node_modules/**", "smoke/**", "tests/**"],
+  "allowed_types": ["wiki-chapter", "adr", "index", "reference", "report", "readme"]
+}

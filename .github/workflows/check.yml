@@ -1,0 +1,64 @@
+name: Source checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  portable-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check all JavaScript syntax and package manifests
+        run: node scripts/check-source.mjs
+      - name: Test magpie workbench with local fake services
+        working-directory: dsh-gpt-image-playground-magpie
+        run: node --test test/*.test.mjs
+
+  subagent-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dsh-subagent-ui
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.5
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm run check
+      - run: pnpm test
+      - run: node --test test/smoke-runtime.test.mjs test/owned-processes.test.mjs test/verify-build.test.mjs
+      - name: Verify the bundle from the monorepo commit
+        run: node scripts/verify-build.mjs HEAD --max-chars 1200
+
+  subagent-native-titlebar:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: dsh-subagent-ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.5
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm run test:native-titlebar

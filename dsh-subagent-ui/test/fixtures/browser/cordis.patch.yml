@@ -1,0 +1,8 @@
+- insert:
+    - id: subagent-ui-browser-fixture
+      name: '@local/dsh-subagent-ui-browser-fixture'
+- id: agent-default-model
+  name: '@deepseek-ai/dsh-agent-default-model'
+  config:
+    provider: ui-smoke
+    model: ui-smoke-never

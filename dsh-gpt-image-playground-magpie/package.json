@@ -1,0 +1,42 @@
+{
+  "name": "dsh-gpt-image-playground-magpie",
+  "version": "0.2.1",
+  "private": true,
+  "description": "Connects the GPT Image Playground workbench to magpie's 幻灵AI GPT Image models through a same-origin Host route.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "scripts/verify-workbench-profile.mjs",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check index.js && node --check client.js && node --check scripts/verify-workbench-profile.mjs && npm test",
+    "verify:workbench": "node scripts/verify-workbench-profile.mjs"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,3 @@
+- insert:
+    - id: dsh-devtools
+      name: '@local/dsh-devtools'

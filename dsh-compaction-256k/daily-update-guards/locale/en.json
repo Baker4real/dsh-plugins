@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Daily update guards",
+    "description": "Compacts daily-update schedule prompts and blocks unsafe checked PowerShell command strings."
+  }
+}

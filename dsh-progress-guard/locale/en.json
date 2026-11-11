@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Progress guard",
+    "description": "Detect repeated tool-loop progress, add a single corrective reminder, and fold identical intermediate replies while preserving the originals and tool calls."
+  }
+}

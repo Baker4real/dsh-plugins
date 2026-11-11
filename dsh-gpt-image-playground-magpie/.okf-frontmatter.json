@@ -1,0 +1,17 @@
+{
+  "include": [
+    "*.md",
+    "docs/**/*.md"
+  ],
+  "exclude": [
+    "AGENTS.md"
+  ],
+  "allowed_types": [
+    "wiki-chapter",
+    "adr",
+    "index",
+    "reference",
+    "report",
+    "readme"
+  ]
+}

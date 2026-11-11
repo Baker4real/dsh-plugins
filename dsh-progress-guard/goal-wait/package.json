@@ -1,0 +1,12 @@
+{
+  "name": "@local/dsh-goal-wait",
+  "version": "1.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Persist human-action waits for goals and resume once at an authorized input edge.",
+  "exports": { ".": "./index-v2.js", "./locale/*.json": "./locale/*.json", "./icon": "./icon.svg" },
+  "files": ["index-v2.js", "index.js", "state.js", "receipt.js", "cordis.patch.yml", "locale/*.json", "icon.svg", "README.md", "scripts/*.mjs", "scripts/*.ps1", "tests/*.js"],
+  "scripts": { "check": "node scripts/check.mjs" },
+  "engines": { "dsh": "0.2.2-rc.1" },
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+}

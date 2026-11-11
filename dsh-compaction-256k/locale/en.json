@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Configurable threshold compaction",
+    "description": "Configurable official compaction thresholds, nested preset inspection, bounded Host source search, and filtered plugin-list summaries."
+  }
+}

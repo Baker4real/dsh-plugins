@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "生图工作台 · magpie 模型",
+    "description": "给生图工作台加入「幻灵AI · magpie」配置，提供 gpt-image-2.6-sunburst 与 gpt-image-2.6-flare 两个模型，经同源路由转发到本机 magpie 网关。"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Magpie models for the image workbench",
+    "description": "Adds a 幻灵AI · magpie configuration to the GPT Image Playground workbench with gpt-image-2.6-sunburst and gpt-image-2.6-flare, served through magpie's local gateway on a same-origin route."
+  }
+}
