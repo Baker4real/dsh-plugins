@@ -37,11 +37,11 @@ min(thresholdTokens, floor(min(W × thresholdRatio, W − O − headroomTokens))
 
 ## 每日更新工具守卫
 
-`daily-update-guards/` 是独立 Host bundle：以同名 scoped registration 包装现有 `schedule_view`、`schedule_edit` 和 `pwsh`，提供每日更新 prompt 的 compact/full 投影、唯一 canonical 文件读取边界，以及高风险 `-CommandText` 执行前拦截。源码、fake fixture 测试和独立检查命令见该目录的 `README.md`。
+`daily-update-guards/` 是独立 Host bundle：以同名 scoped registration 包装现有 `schedule_view`、`schedule_edit` 和 `pwsh`，提供每日更新 prompt 的 compact/full 投影、唯一 canonical 文件读取边界、高风险 `-CommandText` 拦截，以及直接 `gh` 调用的确定性参数预检。语法范围、检查命令和回归见[子包说明](daily-update-guards/README.md)。
 
 ## 来源与读取保障
 
-[agent-reliability](agent-reliability/README.md) 是独立 Host bundle，校验模型响应中的来源引用、复用当前已配置的 Exa 搜索并报告健康状态、提供有界网页章节读取及 GenUI 核心/高级分层读取。通过官方工具安装该目录；检查命令为该目录的 `pnpm run check`。GenUI 使用结果投影，保留原生 skill 身份与技能目录；完整上游文档仍可按需读取。
+[agent-reliability](agent-reliability/README.md) 是独立 Host bundle，校验模型响应中的来源引用、复用当前已配置的 Exa 搜索并报告健康状态、提供有界网页章节读取及 GenUI 核心/高级分层读取。通过官方工具安装该目录；检查命令为该目录的 `pnpm run check`。技能读取使用结果投影，保留原生 `skill` 身份与技能目录；完整同版本正文仍在有效上下文时返回短回执，`skill_reload` 强制重读全文。GenUI 核心与分段读取保留，部分内容不作为全文去重证据。
 
 ## 使用
 
@@ -79,6 +79,7 @@ DSH 内使用现有 Host `Source.searchFile`。Codex 未暴露该 Provider 时�
 - 完整门禁：使用 DSH bundled Node 24+ 运行 `pnpm run check`，覆盖主 bundle、`context-meter/`、`daily-update-guards/`、`smoke/` 的语法和全部测试。
 - 运行态：用 Host `Preset.listEntries` 检查四个预设的自定义引擎、阈值配置和诊断。Client `Slots.listSubTree` 只证明 occupant 已注册，不证明数据或 DOM 正确。
 - 新会话：安装 `smoke/` 下的一次性 bundle，读取 `D:/agents/run-evidence/dsh-compaction-256k/smoke-result.json`，然后移除 smoke bundle。结果覆盖 Host 引擎、真实 `compactionSettings` 投影，以及紧凑 Inspect 相对原工具的字符缩减；任一失败都不能验收。
+- Retro Host 回归：`smoke/retro/` 是无模型请求的一次性 fixture，验证原生技能目录、完整正文→重复短回执→显式重载、原生定义身份及命令预检正负控制，结果写入 `D:/agents/run-evidence/retro-improvements/20261111/host-smoke.json`。通过 `plugin_manager` 安装后读取结果，再移除 fixture。旧 Host 仍缓存旧模块时保留 `pending-runtime-reload`；须在新 Host 重跑，不以包文件或 applied 状态代替运行代次。fixture 是一次性验收工具，省略库存 locale 和图标。
 - 真实 UI：先打开一个包含余量组件的会话，在已连接且已鉴权的 Harness 页面运行 `node smoke/ui-smoke.mjs`。Desktop 没有可见 URL 时，可临时安装 `smoke/opener/`，它调用官方 handoff 打开鉴权页面但不打印或返回令牌；页面打开后立即移除 opener。脚本优先只读复用页面，读取 `[data-compaction-remaining]` 的百分比、阈值和可见文本；没有现有页面时才打开默认本机地址，并在结束后关闭自己创建的失败标签。鉴权页、首页、缺失元素或非法数值均失败，结果写入 `D:/agents/run-evidence/dsh-compaction-256k/ui-smoke-result.json`。
 
 完整维护步骤见 `D:/Codex/.codex/docs/agent-guidance/host-runbook/dsh-compaction.md`。

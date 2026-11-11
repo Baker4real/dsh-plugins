@@ -1,0 +1,10 @@
+{
+  "name": "@local/dsh-retro-smoke",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "一次性验证 retro 命令预检与技能加载行为，不调用模型。",
+  "exports": { ".": "./index.js" },
+  "files": ["index.js", "cordis.patch.yml"],
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+}

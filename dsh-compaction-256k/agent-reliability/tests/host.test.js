@@ -35,9 +35,11 @@ test('host hooks intercept actual loop-request identity and request one logged r
   assert.equal(f.injections.length, 1);
   const status = await f.status();
   assert.equal(status.metrics.checkedStreams, 2);
-  assert.deepEqual(new Set(status.wrappers), new Set(['web_fetch', 'genui_reference', 'web_search']));
+  assert.deepEqual(new Set(status.wrappers), new Set(['web_fetch', 'genui_reference', 'skill_reload', 'web_search']));
   f.dispose();
   assert.equal(f.tools.get('skill'), f.originals.get('skill'));
+  assert.equal(f.tools.get('skill_reload'), undefined);
+  assert.equal(f.tools.get('genui_reference'), undefined);
 });
 
 test('native skill identity and catalog gate survive progressive content projection', async () => {

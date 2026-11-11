@@ -6,7 +6,7 @@
   "description": "Compact daily-update schedule prompts and reject unsafe checked PowerShell command strings.",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "check": "node --check index.js && node --check schedule-tools.js && node --check pwsh-guard.js && node --check tests/fixtures.js && node --check tests/schedule-tools.test.js && node --check tests/pwsh-guard.test.js && node --test tests/*.test.js"
+    "check": "node --check index.js && node --check schedule-tools.js && node --check pwsh-guard.js && node --check tests/fixtures.js && node --check tests/schedule-tools.test.js && node --check tests/pwsh-guard.test.js && node --check tests/pwsh-preflight.test.js && node --test tests/*.test.js"
   },
   "exports": {
     ".": "./index.js",

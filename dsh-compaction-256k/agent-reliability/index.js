@@ -4,6 +4,7 @@ import { createUserMessage, isAgentLoopRequest } from '@deepseek-ai/dsh-llm';
 import { initialSources, foldSources, guardCitationStream, REPAIR_REQUEST } from './citations.js';
 import { createBoundedFetchTool, createProgressiveSkillTool, projectGenuiSkillValue } from './content-tools.js';
 import { createExaSearchTool, initialSearchHealth } from './search.js';
+import { completeSkillResult, createSkillReloadTool, projectLoadedSkill } from './skill-loading.js';
 
 export const inject = ['tools', 'agents', 'sessionProjections', 'cordisInspect'];
 const stateSchema = z.object({ calls: z.record(z.string(), z.string()), sources: z.record(z.string(), z.string()), turn: z.number().int(), repairRequested: z.boolean() });
@@ -44,6 +45,8 @@ export async function apply(ctx) {
         // Keep the native skill object's identity: the upstream catalog uses it as its visibility gate.
         const nativeSkill = agent.ctx.tools.get('skill', agent);
         if (nativeSkill) {
+          disposers.push(agent.ctx.tools.register(createSkillReloadTool(nativeSkill)));
+          wrapped.push('skill_reload');
           const sections = createProgressiveSkillTool(nativeSkill);
           disposers.push(agent.ctx.tools.register({
             ...sections,
@@ -69,8 +72,13 @@ export async function apply(ctx) {
 
   ctx.on('tools/post-execute', async (exec, result, next) => {
     const decision = await next();
-    if (exec.name !== 'skill' || exec.arguments?.name !== 'genui' || result.isError || decision.kind !== 'accept' || decision.content !== undefined) return decision;
-    const raw = decision.value ?? result.value;
+    if (exec.name !== 'skill') return decision;
+    const nativeSkill = exec.agent?.ctx.tools.get('skill', exec.agent, exec.toolSet);
+    const projected = projectLoadedSkill(exec, result, decision, nativeSkill);
+    if (projected !== decision) return projected;
+    if (exec.name !== 'skill' || exec.arguments?.name !== 'genui' || result.isError || exec.signal?.aborted || decision.kind !== 'accept' || Object.hasOwn(decision, 'content') || Object.hasOwn(decision, 'value')) return decision;
+    if (nativeSkill && !completeSkillResult(exec, result, nativeSkill)) return decision;
+    const raw = result.value;
     if (raw?.name !== 'genui') return decision;
     return { ...decision, value: projectGenuiSkillValue(raw) };
   });
@@ -107,7 +115,7 @@ export async function apply(ctx) {
       const agent = input.sessionId ? ctx.agents.get(input.sessionId) : undefined;
       const state = agent ? registry.stateOf(agent.session) : undefined;
       return {
-        version: '1.0.1', citationStreamGuard: true, activeAgents: installed.size,
+        version: '1.0.2', citationStreamGuard: true, activeAgents: installed.size,
         wrappers: input.sessionId ? installed.get(input.sessionId)?.wrapped ?? [] : [...new Set([...installed.values()].flatMap(item => item.wrapped))],
         sourceCount: state ? Object.keys(state.sources).length : null,
         search: { ...health }, metrics: { ...metrics },

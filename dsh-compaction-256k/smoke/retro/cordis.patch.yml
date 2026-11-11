@@ -1,0 +1,3 @@
+- insert:
+    - id: retro-host-smoke
+      name: '@local/dsh-retro-smoke'
