@@ -35,7 +35,7 @@ if (!Number.isInteger(maxChars) || maxChars < 80) throw new Error('max chars mus
 const ref = positional[0] || 'c1afd17949de7f2136acdd4dea5e876a8544cddf'
 const prefix = execFileSync('git', ['rev-parse', '--show-prefix'], { encoding: 'utf8' }).trim()
 const candidates = [...new Set([`${prefix}lib/client.js`, 'lib/client.js'])]
-const goldenPath = candidates.find(path => execFileSync('git', ['ls-tree', '--name-only', ref, '--', path], { encoding: 'utf8' }).trim() === path)
+const goldenPath = candidates.find(path => execFileSync('git', ['ls-tree', '--full-tree', '--name-only', ref, '--', path], { encoding: 'utf8' }).trim() === path)
 if (!goldenPath) throw new Error(`No generated client bundle found in ${ref}`)
 const golden = execFileSync('git', ['show', `${ref}:${goldenPath}`], { encoding: 'utf8', maxBuffer: 1 << 26 })
 const built = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
@@ -229,4 +229,4 @@ if (failed) {
   process.exit(1)
 }
 console.log(output)
-console.log(`verify-build OK: lib/client.js matches ${ref}:lib/client.js up to insignificant whitespace`)
+console.log(`verify-build OK: lib/client.js matches ${ref}:${goldenPath} up to insignificant whitespace`)
