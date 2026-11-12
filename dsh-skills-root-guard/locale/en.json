@@ -1,0 +1,4 @@
+{
+  "title": "Skills Root Guard",
+  "description": "Deny direct writes to the active skills root."
+}

@@ -1,0 +1,4 @@
+{
+  "title": "Skills 根写入守卫",
+  "description": "拦截对现役 skills 根的直接写入。"
+}
