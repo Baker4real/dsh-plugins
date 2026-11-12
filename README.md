@@ -15,6 +15,7 @@ intent: 汇集本地维护的 DSH 插件源码，说明各目录、检查与安�
 | `dsh-progress-guard/` | 进度防复读、只读诊断工具、目标人工等待 | [说明](dsh-progress-guard/README.md) |
 | `dsh-gpt-image-playground-magpie/` | 生图工作台的本地 magpie 网关接入 | [说明](dsh-gpt-image-playground-magpie/README.md) |
 | `dsh-subagent-ui/` | 子代理管理浮窗与默认收起、本地界面和验收改进 | [中文说明](dsh-subagent-ui/README.zh.md) |
+| `dsh-skills-root-guard/` | 拦截对现役 skills 根的直接 write/edit 工具调用 | [说明](dsh-skills-root-guard/README.md) |
 
 子代理工作台基于 [miuzel/dsh-subagent-ui](https://github.com/miuzel/dsh-subagent-ui)，保留完整上游历史和原始 [MIT 许可证](dsh-subagent-ui/LICENSE)，本地改动随源码一并纳入。其余目录为本地维护的独立插件，许可按各包自身声明。
 

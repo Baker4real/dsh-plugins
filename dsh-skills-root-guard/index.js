@@ -1,12 +1,18 @@
-import { resolve, isAbsolute, sep } from 'node:path';
+import { realpath } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
 const SKILLS_ROOT = 'D:\\agents\\skills-manager\\skills';
 const GUARDED_ENTRY = 'D:\\Codex\\.codex\\scripts\\install-skill-guarded.cmd';
 
-function isInsideSkillsRoot(filePath, cwd) {
-  if (!filePath || typeof filePath !== 'string') return false;
-  const absolute = isAbsolute(filePath) ? filePath : resolve(cwd || '', filePath);
-  const normalized = absolute.replace(/\//g, '\\');
+async function canonicalPath(filePath, cwd) {
+  const absolute = isAbsolute(filePath) ? filePath : resolve(cwd, filePath);
+  try { return await realpath(absolute); } catch { /* A new write target does not exist yet. */ }
+  try { return join(await realpath(dirname(absolute)), basename(absolute)); }
+  catch { return absolute; }
+}
+
+function isInsideSkillsRoot(path) {
+  const normalized = path.replace(/\//g, '\\');
   return normalized.toLowerCase().startsWith(SKILLS_ROOT.toLowerCase() + '\\')
     || normalized.toLowerCase() === SKILLS_ROOT.toLowerCase();
 }
@@ -25,10 +31,10 @@ export function apply(ctx) {
     const filePath = args?.file_path;
     if (!filePath) return decision;
 
-    // Only absolute paths can be checked without the working-directory service.
-    if (!isAbsolute(filePath)) return decision;
+    const cwd = exec.agent ? ctx.workingDirectory.get(exec.agent.session) : undefined;
+    if (!isAbsolute(filePath) && !cwd) return decision;
 
-    if (!isInsideSkillsRoot(filePath)) return decision;
+    if (!isInsideSkillsRoot(await canonicalPath(filePath, cwd))) return decision;
 
     return {
       kind: 'deny',
