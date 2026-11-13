@@ -5,6 +5,7 @@ import { initialSources, foldSources, guardCitationStream, REPAIR_REQUEST } from
 import { createBoundedFetchTool, createProgressiveSkillTool, projectGenuiSkillValue } from './content-tools.js';
 import { createExaSearchTool, initialSearchHealth } from './search.js';
 import { completeSkillResult, createSkillReloadTool, projectLoadedSkill } from './skill-loading.js';
+import { guardAskUserQuestion } from './question-guard.js';
 
 export const inject = ['tools', 'agents', 'sessionProjections', 'cordisInspect'];
 const stateSchema = z.object({ calls: z.record(z.string(), z.string()), sources: z.record(z.string(), z.string()), turn: z.number().int(), repairRequested: z.boolean() });
@@ -14,7 +15,12 @@ export async function apply(ctx) {
   const health = initialSearchHealth();
   const installed = new Map();
   const repairs = new Map();
-  const metrics = { checkedStreams: 0, blockedCitations: 0, repairRequests: 0 };
+  const metrics = { checkedStreams: 0, blockedCitations: 0, repairRequests: 0, questionRejections: 0 };
+  ctx.effect(() => ctx.tools.guard(exec => {
+    const reason = guardAskUserQuestion(exec);
+    if (reason) metrics.questionRejections++;
+    return reason;
+  }), 'agent-reliability: question schema guard');
 
   async function runConfiguredMcp(args, exec) {
     const name = 'mcp__magpie__call_tool';
@@ -115,7 +121,7 @@ export async function apply(ctx) {
       const agent = input.sessionId ? ctx.agents.get(input.sessionId) : undefined;
       const state = agent ? registry.stateOf(agent.session) : undefined;
       return {
-        version: '1.0.2', citationStreamGuard: true, activeAgents: installed.size,
+        version: '1.0.3', citationStreamGuard: true, questionSchemaGuard: true, activeAgents: installed.size,
         wrappers: input.sessionId ? installed.get(input.sessionId)?.wrapped ?? [] : [...new Set([...installed.values()].flatMap(item => item.wrapped))],
         sourceCount: state ? Object.keys(state.sources).length : null,
         search: { ...health }, metrics: { ...metrics },

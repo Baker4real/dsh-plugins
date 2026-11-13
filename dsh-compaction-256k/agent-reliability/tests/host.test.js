@@ -12,6 +12,7 @@ function fixture() {
   const tools = {
     get: name => scoped.get(name) ?? originals.get(name),
     register: tool => { assert.ok(!scoped.has(tool.name)); scoped.set(tool.name, tool); return () => scoped.delete(tool.name); },
+    guard: () => () => {},
     execute: async input => { batches.push(input); return { results: [{ callId: input.calls[0].id, result: { isError: false, value: {}, content: [{ type: 'text', text: 'Title: Example\nURL: https://example.org\nHighlights: observed' }] } }], additionalContexts: [], concluded: false }; },
   };
   const effect = callback => { const cleanup = callback(); const dispose = () => cleanup?.(); effects.push(dispose); return dispose; };

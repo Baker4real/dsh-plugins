@@ -9,6 +9,7 @@
 - 网页：`web_fetch` 保留原始安全 HTML 转换，提供有界正文、标题目录、唯一章节选择和明确的分页位置。原始结果保留在结构化值里，模型收到的是短投影。
 - 技能正文：首次 `skill(name=...)` 保留原生加载结果；只有相同名称、正文 SHA-256 与资源提示都一致的完整内容仍在当前有效上下文中，重复调用才返回简短回执。正文逐字比较，换行或源码内容变化会重新返回全文。`skill_reload(name=...)` 始终请求当前全文，包括 GenUI；它复用原生 skill 的参数和模型调用权限。原生 skill 定义对象保持同一身份，宿主技能目录的 identity 可见性判断不变。
 - GenUI：`skill(name=genui)` 继续默认读取核心指导；高级内容通过 `genui_reference(section=...)` 请求，`section=all` 保留完整上游原文。核心与分段投影不算完整加载；只有上下文中已有同版本全文时，普通 `skill` 调用才会收到已加载回执。核心和重复读取均通过 `tools/post-execute` 投影；其它插件的 content/value/block 决定及 additionalContexts 原样保留。
+- 提问：`ask_user_question` 经官方 `tools.guard()` 在分发前执行严格 schema 校验。顶层、问题和选项都拒绝未知键；问题 ID/正文和选项 label 不可为空，ID 不可重复。合法的自由文本提问不受影响，诊断只包含字段路径与错误码，不回显问题正文。
 
 ## 技能加载的上下文边界
 
@@ -20,7 +21,7 @@ fork、resume 和重放只依赖各自实际保留的 Session 消息；压缩替
 
 本目录使用 `pnpm run check`，通过 DSH bundled Node 运行 bundled pnpm。安装前运行所有本目录测试；通过官方 `plugin_manager` 以本目录作为 `install_bundle` 的 target 安装。完整测试包含流式引用分片、来源伪造边界、失败与取消、网页分段、GenUI 原文保留以及注册/清理生命周期。技能加载回归经真实 `ToolExecutionPipeline` 和 `SessionStore` 执行，覆盖正文重复、注入、内容变化、重载、会话隔离、fork/resume、压缩替换、消息投影、并发和 waterfall 合作。
 
-安装后用 Cordis Inspect 的 `AgentReliability.status` 查看挂载工具、当前会话来源数和最后一次搜索状态。它只读，不探测网络也不暴露凭据。输入 `sessionId` 可检查目标会话。搜索状态是上一次真实请求的结果，不是永久可用性保证。
+安装后用 Cordis Inspect 的 `AgentReliability.status` 查看挂载工具、当前会话来源数和最后一次搜索状态。它只读，不探测网络也不暴露凭据。输入 `sessionId` 可检查目标会话。搜索状态是上一次真实请求的结果，不是永久可用性保证。提问守卫的 `smoke-question/` 是临时安装、验收后卸载的真实工具管线回归：畸形键和重复 ID 必须执行前拒绝；合法输入应到达原生工具，测试不伪造用户回答。
 
 实时验收应包含：一次官方站点搜索、对同一网页的目录和章节读取、GenUI 核心与高级分段读取，以及真实 Host 流水线上的引用负控。技能去重在现有与新 Agent 分别确认原生目录可见、首次完整/重复短回执/显式重载，之后验收一次用户技能注入、改正文再读、fork/resume 和压缩后重读；回执只应在全文仍保留的上下文出现。`skill_reload` 的新增 schema 会增加首次请求的工具说明开销，部署时以同预设、模型和消息比较首次请求 token 用量，再比较重复技能结果的节省。现有 Agent 与新 Agent 均应确认工具包装；仅安装成功不代表完成。
 

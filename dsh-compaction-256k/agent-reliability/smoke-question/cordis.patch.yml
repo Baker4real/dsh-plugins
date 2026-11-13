@@ -1,0 +1,3 @@
+- insert:
+    - id: question-guard-smoke
+      name: '@local/dsh-question-guard-smoke'

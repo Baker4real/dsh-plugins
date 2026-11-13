@@ -5,7 +5,7 @@ import { LlmAdapter, isAgentLoopRequest } from '@deepseek-ai/dsh-llm';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 
 export const inject = ['agentLoop', 'agentPresets', 'tools', 'llm', 'sessionProjections', 'clientModules'];
-const ROOT = 'D:/agents/run-evidence/dsh-repeated-output/repair-20261109';
+const ROOT = 'D:/agents/run-evidence/retro-all-20261113/live-progress-smoke';
 const PROGRESS = '已经定位到原始会话中的重复进度，接下来继续核对实际消息流与工具执行，并验证修复不会删除原文或重复执行工具。';
 
 export async function apply(ctx) {
@@ -70,9 +70,12 @@ export async function apply(ctx) {
     const assistants = history.filter(message => message.role === 'assistant');
     result.duplicateCount = Object.keys(view?.duplicates ?? {}).length;
     result.reminderCount = history.filter(message => message.source?.kind === 'progress-guard').length;
-    result.originalTextsPreserved = assistants.slice(0, 4).every(message => message.content.find(block => block.type === 'text')?.text === PROGRESS);
+    const intermediate = assistants.slice(0, 4);
+    result.firstTextPreserved = intermediate[0]?.content.find(block => block.type === 'text')?.text === PROGRESS;
+    result.duplicateTextsRemoved = intermediate.slice(1).every(message =>
+      !message.content.some(block => block.type === 'text') && message.content.some(block => block.type === 'tool-call'));
     result.finalAnswerPreserved = assistants.at(-1)?.content[0]?.text === 'Smoke verification complete.';
-    result.status = calls.length === 5 && executions.join(',') === '1,2,3,4' && result.duplicateCount === 3 && result.reminderCount === 1 && result.originalTextsPreserved && result.finalAnswerPreserved && calls[2].reminderCount === 1 ? 'pass' : 'fail';
+    result.status = calls.length === 5 && executions.join(',') === '1,2,3,4' && result.duplicateCount === 0 && result.reminderCount === 0 && result.firstTextPreserved && result.duplicateTextsRemoved && result.finalAnswerPreserved && calls.every(call => call.reminderCount === 0) ? 'pass' : 'fail';
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error);
   } finally {

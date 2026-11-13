@@ -29,7 +29,7 @@ window.__ModuleLoader__.load({
           query(method) {
             if (method !== 'status') throw new Error(`Unknown ProgressGuard method: ${method}`);
             const winner = ctx.slots.entriesOfSlot(SLOT).filter(entry => entry.options.key === 'assistant-step').sort((a, b) => (a.options.priority ?? 0) - (b.options.priority ?? 0))[0];
-            return { version: '1.0.0', registrationCount, renderCount, foldCount, active: winner?.registrant === '@local/dsh-progress-guard', registrant: winner?.registrant ?? null, errors, childEntries: ['conversation.chat.reasoning.body', 'conversation.chat.message.images'].map(name => { const entry = ctx.slots.entriesOfSlot(name)[0]; return { name, registrant: entry?.registrant ?? null, inject: entry?.inject !== undefined, store: entry?.store !== undefined, children: entry?.children !== undefined, locale: entry?.locale ?? null }; }) };
+            return { version: '1.1.0', registrationCount, renderCount, foldCount, active: winner?.registrant === '@local/dsh-progress-guard', registrant: winner?.registrant ?? null, errors, childEntries: ['conversation.chat.reasoning.body', 'conversation.chat.message.images'].map(name => { const entry = ctx.slots.entriesOfSlot(name)[0]; return { name, registrant: entry?.registrant ?? null, inject: entry?.inject !== undefined, store: entry?.store !== undefined, children: entry?.children !== undefined, locale: entry?.locale ?? null }; }) };
           },
         }), 'progress-guard: status'));
         ctx.slots.inject(SLOT, () => {

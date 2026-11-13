@@ -30,7 +30,7 @@ async function fixture(t, { seed, inheritedEventCount, projectResults } = {}) {
   };
   const tools = {
     get: name => scoped.get(name) ?? (name === 'skill' ? nativeSkill : undefined),
-    executable: name => tools.get(name), checkGuards: () => undefined,
+    executable: name => tools.get(name), checkGuards: () => undefined, guard: () => () => {},
     register: tool => { assert.ok(!scoped.has(tool.name)); scoped.set(tool.name, tool); return () => scoped.delete(tool.name); },
   };
   const effect = callback => { const dispose = callback(); effects.push(dispose); return dispose; };
