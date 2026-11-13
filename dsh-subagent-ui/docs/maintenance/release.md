@@ -6,7 +6,7 @@
 
 **获准提交时**：源码与重新生成的 bundle 一起提交；沿用 `feat:` / `fix:` / `refactor:` / `docs:` / `chore:` 前缀。
 
-**Board**: this workspace uses dsh-graph (`.dsh-graph/`, gitignored) for goal tracking; run `graph_*` tools only from the repository root so they resolve the correct graph root. `.dsh-plugin-smoke/` and `.dsh-graph/` are local/runtime data, not application source.
+**Board**: this workspace uses dsh-graph (`.dsh-graph/`, gitignored) for goal tracking; run `graph_*` tools only from the repository root so they resolve the correct graph root. `.dsh-plugin-smoke/` (the smoke root outside the `D:\agents` layout; see README) and `.dsh-graph/` are local/runtime data, not application source.
 
 ## Publish
 

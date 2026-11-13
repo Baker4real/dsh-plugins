@@ -4,6 +4,14 @@ import { basename, delimiter, dirname, join, resolve } from 'node:path'
 
 const bashPath = value => String(value).replace(/\\/g, '/')
 
+// Each smoke run keeps a whole isolated DSH_HOME and browser profile. Inside the D:\agents layout runs go under
+// run-evidence so globs over the project stay small; DSH_SMOKE_ROOT overrides, other checkouts keep the old default.
+export function smokeRoot({ projectRoot, env = process.env, exists = existsSync }) {
+  if (env.DSH_SMOKE_ROOT) return resolve(env.DSH_SMOKE_ROOT)
+  const evidence = resolve(projectRoot, '../../../run-evidence')
+  return exists(evidence) ? join(evidence, 'dsh-subagent-ui', 'plugin-smoke') : join(projectRoot, '.dsh-plugin-smoke')
+}
+
 export function pnpmEntry({ env = process.env, execPath = process.execPath, exists = existsSync } = {}) {
   const candidates = [env.DSH_PNPM, env.npm_execpath]
   if (env.DSH_PNPX) candidates.push(...(env.DSH_PNPX.match(/(?:[A-Za-z]:[\\/]|\/)[^\s"']+\.(?:cjs|mjs)/g) || []))

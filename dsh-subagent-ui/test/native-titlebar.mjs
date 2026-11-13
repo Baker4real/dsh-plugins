@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import { spawn, execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { platform } from 'node:os'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
-import { pnpmEntry } from './smoke-runtime.mjs'
+import { pnpmEntry, smokeRoot } from './smoke-runtime.mjs'
 import { OwnedTree } from './owned-processes.mjs'
 
 const execFileAsync = promisify(execFile)
@@ -14,7 +14,7 @@ const scriptPath = fileURLToPath(import.meta.url)
 const here = dirname(scriptPath)
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const ELECTRON_VERSION = '42.4.0'
-const progressPath = join(here, '../.dsh-plugin-smoke/native-titlebar-progress.log')
+const progressPath = join(smokeRoot({ projectRoot: resolve(here, '..') }), 'native-titlebar-progress.log')
 const note = stage => {
   if (!process.env.DSH_NATIVE_PROGRESS) return
   mkdirSync(dirname(progressPath), { recursive: true })

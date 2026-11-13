@@ -1,9 +1,17 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { dirname, resolve } from 'node:path'
-import { planSmokeRuntime } from './smoke-runtime.mjs'
+import { dirname, join, resolve } from 'node:path'
+import { planSmokeRuntime, smokeRoot } from './smoke-runtime.mjs'
 
 const managedPnpm = execPath => resolve(dirname(execPath), '../../pnpm/bin/pnpm.cjs')
+
+test('smoke runs go under run-evidence in the agents layout, DSH_SMOKE_ROOT wins, other checkouts stay in-project', () => {
+  const projectRoot = resolve('/agents/projects/dsh-plugins/dsh-subagent-ui')
+  const evidence = resolve('/agents/run-evidence')
+  assert.equal(smokeRoot({ projectRoot, env: {}, exists: path => path === evidence }), join(evidence, 'dsh-subagent-ui', 'plugin-smoke'))
+  assert.equal(smokeRoot({ projectRoot, env: {}, exists: () => false }), join(projectRoot, '.dsh-plugin-smoke'))
+  assert.equal(smokeRoot({ projectRoot, env: { DSH_SMOKE_ROOT: '/scratch/smoke' }, exists: () => true }), resolve('/scratch/smoke'))
+})
 
 test('managed Node supplies pnpm and an internal shim even when dsh and pnpm are absent from PATH', () => {
   const execPath = 'C:/runtime/dependencies/node/bin/node.exe'

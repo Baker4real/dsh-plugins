@@ -7,11 +7,11 @@ import { appendFileSync, existsSync } from 'node:fs'
 import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { platform } from 'node:os'
 import { basename, join, resolve } from 'node:path'
-import { materializeSmokeRuntime, planSmokeRuntime } from './smoke-runtime.mjs'
+import { materializeSmokeRuntime, planSmokeRuntime, smokeRoot } from './smoke-runtime.mjs'
 import { OwnedTree } from './owned-processes.mjs'
 
 const root = resolve(process.cwd())
-const scratch = join(root, '.dsh-plugin-smoke')
+const scratch = smokeRoot({ projectRoot: root })
 const PARENT_A = 'session-ui-smoke-parent-a'
 const PARENT_B = 'session-ui-smoke-parent-b'
 const sleep = ms => new Promise(resolveSleep => setTimeout(resolveSleep, ms))
