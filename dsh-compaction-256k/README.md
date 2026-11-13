@@ -61,14 +61,16 @@ $node = "$desktop/resources/runtime/primary-runtime/dependencies/node/bin/node.e
 
 ## 查询当前宿主源码
 
-DSH 内使用现有 Host `Source.searchFile`。Codex 未暴露该 Provider 时，通过同一个 Electron Node 方式调用 `scripts/dsh-inspect.mjs`；先查实际 manifest 的 `exports`/`types`/`main`，再查询一个已确认的文件：
+DSH 内使用现有 Host `Source.searchFile`。Codex 未暴露该 Provider 时，通过同一个 Electron Node 方式调用 `scripts/dsh-inspect.mjs`；先查实际 manifest 的 `exports`/`types`/`main`，用 `files` 确认文件真的在包里，再搜索或按行读取。manifest 声明的文件不一定随安装包发布：0.2.2-rc.1 的 `@deepseek-ai/dsh-session-projection` 在 `exports` 里写了 `./lib/types/index.d.ts`，包里的 `lib/types/` 只有 `index.js` 和 `types.js`。
 
 ```powershell
 & $node 'D:/agents/projects/dsh-plugins/dsh-compaction-256k/scripts/dsh-desktop.mjs' manifest --resources "$desktop/resources" --package '@deepseek-ai/dsh-session-projection'
+& $node 'D:/agents/projects/dsh-plugins/dsh-compaction-256k/scripts/dsh-desktop.mjs' files --resources "$desktop/resources" --package '@deepseek-ai/dsh-session-projection' --directory 'lib' --limit 50
 & $node 'D:/agents/projects/dsh-plugins/dsh-compaction-256k/scripts/dsh-desktop.mjs' search --resources "$desktop/resources" --package '@deepseek-ai/dsh-session-projection' --file 'lib/index.js' --pattern 'viewSchema' --max-matches 3 --context 1
+& $node 'D:/agents/projects/dsh-plugins/dsh-compaction-256k/scripts/dsh-desktop.mjs' read --resources "$desktop/resources" --package '@deepseek-ai/dsh-session-projection' --file 'lib/index.js' --start-line 1 --max-lines 80
 ```
 
-搜索以包目录为边界，单文件最多 2 MiB，返回最多 100 行，每行最多 500 字符，总 JSON 最多 50,000 字符；`totalMatches` 与 `truncated` 说明省略情况。路径、包名、参数或读取失败均退出非零；真实零命中返回空数组。只读工具不访问 profile、cookie 或会话历史，也不解包、替换官方产物。
+四个命令都以包目录为边界，单文件最多 2 MiB，每行最多 500 字符，总 JSON 最多 50,000 字符。`search` 返回最多 100 行，`totalMatches` 与 `truncated` 说明省略情况；`files` 按名字排序，每页最多 100 项，用 `nextOffset` 翻页；`read` 每次最多 200 行，用 `nextLine` 续读。每个命令只接受自己的参数，带了别的命令的参数直接报错。路径、包名、参数或读取失败均退出非零；真实零命中返回空数组。只读工具不访问 profile、cookie 或会话历史，也不解包、替换官方产物。
 
 ## 紧凑 Inspect
 

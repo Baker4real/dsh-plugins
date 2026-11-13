@@ -1,5 +1,5 @@
 /** Read-only inspection through Electron's existing asar filesystem support. */
-import { readFile, realpath, stat } from "node:fs/promises";
+import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -30,6 +30,19 @@ async function packageRoot(root, name) {
   const path = await realpath(join(root, "node_modules", packageName(name)));
   if (!contained(root, path)) throw new Error("package resolves outside the DSH source root");
   return path;
+}
+
+function relativePath(value, label) {
+  if (typeof value !== "string" || value.length === 0 || value.length > 512 || isAbsolute(value)
+      || value.includes(":") || value.split(/[\\/]/u).some((part) => part === "..")) {
+    throw new Error(`${label} must be a relative path inside the selected package`);
+  }
+  return value;
+}
+
+function integerOption(value, label, min, max) {
+  if (!Number.isInteger(value) || value < min || value > max) throw new Error(`${label} must be an integer from ${min} to ${max}`);
+  return value;
 }
 
 async function readText(path) {
@@ -81,10 +94,7 @@ export async function searchSource(resourcesPath, input) {
   if (input === null || typeof input !== "object") throw new Error("search input is required");
   const { packageName: name, file, pattern, maxMatches = 20, context = 2 } = input;
   packageName(name);
-  if (typeof file !== "string" || file.length === 0 || file.length > 512 || isAbsolute(file)
-      || file.includes(":") || file.split(/[\\/]/u).some((part) => part === "..")) {
-    throw new Error("file must be a relative path inside the selected package");
-  }
+  relativePath(file, "file");
   if (typeof pattern !== "string" || pattern.length === 0 || pattern.length > 256) {
     throw new Error("pattern length must be from 1 to 256 characters");
   }
@@ -126,13 +136,80 @@ export async function searchSource(resourcesPath, input) {
   return result;
 }
 
+/** List one directory inside a package, one sorted page at a time. */
+export async function listFiles(resourcesPath, input) {
+  if (input === null || typeof input !== "object") throw new Error("files input is required");
+  const { packageName: name, directory = ".", offset = 0, limit = 50 } = input;
+  packageName(name);
+  relativePath(directory, "directory");
+  integerOption(offset, "offset", 0, 100_000);
+  integerOption(limit, "limit", 1, 100);
+  const root = await sourceRoot(resourcesPath);
+  const packageDir = await packageRoot(root, name);
+  const target = await realpath(resolve(packageDir, directory));
+  if (target !== packageDir && !contained(packageDir, target)) throw new Error("directory resolves outside the selected package");
+  if (!(await stat(target)).isDirectory()) throw new Error("directory must be a directory");
+  const names = (await readdir(target)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const files = [];
+  for (const entry of names.slice(offset, offset + limit)) {
+    const metadata = await lstat(join(target, entry));
+    files.push({ name: entry, type: metadata.isSymbolicLink() ? "symlink" : metadata.isDirectory() ? "directory" : "file" });
+  }
+  const next = offset + files.length;
+  return { packageName: name, directory, offset, total: names.length, files, nextOffset: next < names.length ? next : null };
+}
+
+/** Read a bounded line range of one package text file. */
+export async function readSource(resourcesPath, input) {
+  if (input === null || typeof input !== "object") throw new Error("read input is required");
+  const { packageName: name, file, startLine = 1, maxLines = 80 } = input;
+  packageName(name);
+  relativePath(file, "file");
+  integerOption(startLine, "start-line", 1, 10_000_000);
+  integerOption(maxLines, "max-lines", 1, 200);
+  const root = await sourceRoot(resourcesPath);
+  const directory = await packageRoot(root, name);
+  const target = await realpath(resolve(directory, file));
+  if (!contained(directory, target)) throw new Error("file resolves outside the selected package");
+  const source = (await readText(target)).split(/\r?\n/u);
+  if (startLine > source.length) throw new Error(`start-line is past the end of the file (${source.length} lines)`);
+  const result = { packageName: name, file, totalLines: source.length, lines: [], nextLine: null, truncated: false };
+  let outputChars = JSON.stringify(result).length;
+  for (let index = startLine - 1; index < Math.min(source.length, startLine - 1 + maxLines); index += 1) {
+    const clipped = source[index].length > 500;
+    const row = { line: index + 1, text: clipped ? `${source[index].slice(0, 499)}…` : source[index] };
+    const rowChars = JSON.stringify(row).length + 1;
+    if (outputChars + rowChars > MAX_OUTPUT_CHARS) {
+      result.truncated = true;
+      break;
+    }
+    outputChars += rowChars;
+    result.lines.push(row);
+    if (clipped) result.truncated = true;
+  }
+  const last = result.lines.length > 0 ? result.lines.at(-1).line : startLine - 1;
+  result.nextLine = last < source.length ? last + 1 : null;
+  return result;
+}
+
 const HELP = `DSH bounded source inspector (read only)
   manifest --resources <absolute path> [--package <exact name> ...]
   search --resources <absolute path> --package <exact name> --file <relative path>
          --pattern <regexp> [--max-matches 1..100] [--context 0..5]
+  files --resources <absolute path> --package <exact name> [--directory <relative path>]
+        [--offset 0..100000] [--limit 1..100]
+  read --resources <absolute path> --package <exact name> --file <relative path>
+       [--start-line 1..] [--max-lines 1..200]
 Installed app.asar: run this script with the desktop Electron executable,
 ELECTRON_RUN_AS_NODE=1 and --expose-internals. Plain Node supports directory fixtures.
 `;
+
+const COMMAND_OPTIONS = {
+  manifest: [],
+  search: ["file", "pattern", "max-matches", "context"],
+  files: ["directory", "offset", "limit"],
+  read: ["file", "start-line", "max-lines"],
+};
 
 async function main() {
   const { values, positionals } = parseArgs({
@@ -140,26 +217,36 @@ async function main() {
       resources: { type: "string" }, package: { type: "string", multiple: true },
       file: { type: "string" }, pattern: { type: "string" },
       "max-matches": { type: "string" }, context: { type: "string" }, help: { type: "boolean" },
+      directory: { type: "string" }, offset: { type: "string" }, limit: { type: "string" },
+      "start-line": { type: "string" }, "max-lines": { type: "string" },
     },
     allowPositionals: true,
   });
   if (values.help) { process.stdout.write(HELP); return; }
-  if (positionals.length !== 1) throw new Error("choose manifest or search; see --help");
+  const command = positionals.length === 1 ? positionals[0] : undefined;
+  if (!Object.hasOwn(COMMAND_OPTIONS, command)) throw new Error("choose manifest, search, files or read; see --help");
+  const extra = Object.keys(values).find((key) => !["resources", "package", ...COMMAND_OPTIONS[command]].includes(key));
+  if (extra !== undefined) throw new Error(`${command} does not accept --${extra}`);
+  if (command !== "manifest" && values.package?.length !== 1) throw new Error(`${command} requires exactly one package`);
+  const number = (key, field) => (values[key] === undefined ? {} : { [field]: Number(values[key]) });
   let result;
-  if (positionals[0] === "manifest") {
-    if (values.file !== undefined || values.pattern !== undefined || values["max-matches"] !== undefined || values.context !== undefined) {
-      throw new Error("manifest accepts only resources and package options");
-    }
+  if (command === "manifest") {
     result = await inspectManifest(values.resources, values.package ?? []);
-  } else if (positionals[0] === "search") {
-    if (values.package?.length !== 1) throw new Error("search requires exactly one package");
+  } else if (command === "search") {
     result = await searchSource(values.resources, {
       packageName: values.package[0], file: values.file, pattern: values.pattern,
-      ...(values["max-matches"] === undefined ? {} : { maxMatches: Number(values["max-matches"]) }),
-      ...(values.context === undefined ? {} : { context: Number(values.context) }),
+      ...number("max-matches", "maxMatches"), ...number("context", "context"),
+    });
+  } else if (command === "files") {
+    result = await listFiles(values.resources, {
+      packageName: values.package[0], ...(values.directory === undefined ? {} : { directory: values.directory }),
+      ...number("offset", "offset"), ...number("limit", "limit"),
     });
   } else {
-    throw new Error("choose manifest or search; see --help");
+    result = await readSource(values.resources, {
+      packageName: values.package[0], file: values.file,
+      ...number("start-line", "startLine"), ...number("max-lines", "maxLines"),
+    });
   }
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }

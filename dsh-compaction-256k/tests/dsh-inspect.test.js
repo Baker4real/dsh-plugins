@@ -117,6 +117,72 @@ test("missing, oversized and non-text files fail while a real no-match search su
   await assert.rejects(cli(resources, ...request, "--file", "binary.bin"), /UTF-8 text file/);
 });
 
+test("files lists one sorted page of a package directory with entry types and the next offset", async (t) => {
+  const { resources, packageRoot } = await fixture(t);
+  const lib = join(packageRoot, "@deepseek-ai/dsh-session-projection/lib");
+  await mkdir(join(lib, "types"), { recursive: true });
+  for (const name of ["c.js", "a.js", "b.js"]) await writeFile(join(lib, name), "x");
+  const request = ["files", "--package", "@deepseek-ai/dsh-session-projection", "--directory", "lib"];
+  const first = await cli(resources, ...request, "--limit", "2");
+  assert.deepEqual(first, {
+    packageName: "@deepseek-ai/dsh-session-projection", directory: "lib", offset: 0, total: 4,
+    files: [{ name: "a.js", type: "file" }, { name: "b.js", type: "file" }], nextOffset: 2,
+  });
+  const second = await cli(resources, ...request, "--offset", "2", "--limit", "2");
+  assert.deepEqual(second.files, [{ name: "c.js", type: "file" }, { name: "types", type: "directory" }]);
+  assert.equal(second.nextOffset, null);
+  const top = await cli(resources, "files", "--package", "zod");
+  assert.deepEqual(top.files, [{ name: "package.json", type: "file" }]);
+});
+
+test("files rejects traversal, a link escaping its package and a file target", async (t) => {
+  const { resources, packageRoot } = await fixture(t);
+  const other = join(resources, "outside");
+  await mkdir(other);
+  await symlink(other, join(packageRoot, "zod/linked"), "junction");
+  await assert.rejects(cli(resources, "files", "--package", "zod", "--directory", ".."), /relative path inside the selected package/);
+  await assert.rejects(cli(resources, "files", "--package", "zod", "--directory", "linked"), /resolves outside the selected package/);
+  await assert.rejects(cli(resources, "files", "--package", "zod", "--directory", "package.json"), /must be a directory/);
+  await assert.rejects(cli(resources, "files", "--package", "zod", "--limit", "101"), /integer from 1 to 100/);
+});
+
+test("read returns a bounded line range and the next line to continue from", async (t) => {
+  const { resources, packageRoot } = await fixture(t);
+  const sourcePath = join(packageRoot, "zod/index.cjs");
+  await writeFile(sourcePath, "one\r\ntwo\nthree\nfour\nfive");
+  const request = ["read", "--package", "zod", "--file", "index.cjs"];
+  const middle = await cli(resources, ...request, "--start-line", "2", "--max-lines", "2");
+  assert.deepEqual(middle, {
+    packageName: "zod", file: "index.cjs", totalLines: 5,
+    lines: [{ line: 2, text: "two" }, { line: 3, text: "three" }], nextLine: 4, truncated: false,
+  });
+  const tail = await cli(resources, ...request, "--start-line", "4");
+  assert.deepEqual(tail.lines.map((row) => row.line), [4, 5]);
+  assert.equal(tail.nextLine, null);
+  await assert.rejects(cli(resources, ...request, "--start-line", "6"), /past the end of the file \(5 lines\)/);
+  await assert.rejects(cli(resources, ...request, "--max-lines", "201"), /integer from 1 to 200/);
+  await assert.rejects(cli(resources, "read", "--package", "zod", "--file", "../package.json"), /relative path inside the selected package/);
+});
+
+test("read caps long lines and serialized output", async (t) => {
+  const { resources, packageRoot } = await fixture(t);
+  await writeFile(join(packageRoot, "zod/long.js"), Array.from({ length: 200 }, () => '"'.repeat(600)).join("\n"));
+  const output = await cli(resources, "read", "--package", "zod", "--file", "long.js", "--max-lines", "200");
+  assert.equal(output.truncated, true);
+  assert.ok(output.lines.length > 0 && output.lines.length < 200);
+  assert.ok(output.lines.every((row) => row.text.length <= 500));
+  assert.ok(JSON.stringify(output).length <= 50_000);
+  assert.equal(output.nextLine, output.lines.at(-1).line + 1);
+});
+
+test("each command rejects options that belong to another command", async (t) => {
+  const { resources } = await fixture(t);
+  await assert.rejects(cli(resources, "manifest", "--file", "package.json"), /manifest does not accept --file/);
+  await assert.rejects(cli(resources, "search", "--package", "zod", "--file", "package.json", "--pattern", ".", "--offset", "1"), /search does not accept --offset/);
+  await assert.rejects(cli(resources, "read", "--package", "zod", "--file", "package.json", "--pattern", "."), /read does not accept --pattern/);
+  await assert.rejects(cli(resources, "files", "--package", "zod", "--package", "@deepseek-ai/dsh"), /files requires exactly one package/);
+});
+
 test("invalid package names, regular expressions and output limits fail explicitly", async (t) => {
   const { resources } = await fixture(t);
   await assert.rejects(cli(resources, "manifest", "--package", "../zod"), /exact npm package name/);

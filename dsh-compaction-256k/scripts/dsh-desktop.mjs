@@ -5,9 +5,9 @@ import { runCheckProcess } from "./run-check-process.mjs";
 try {
   const [action, ...args] = process.argv.slice(2);
   if (action === "--help") {
-    console.log("dsh-desktop.mjs <check|manifest|search> --resources <desktop resources> [options]\ncheck: run the project's full pre-activation check\nmanifest/search: see dsh-inspect.mjs --help\nCaptures and waits for a hidden Electron Node child; never opens the desktop UI.");
+    console.log("dsh-desktop.mjs <check|manifest|search|files|read> --resources <desktop resources> [options]\ncheck: run the project's full pre-activation check\nmanifest/search/files/read: see dsh-inspect.mjs --help\nCaptures and waits for a hidden Electron Node child; never opens the desktop UI.");
   } else {
-    if (!["check", "manifest", "search"].includes(action)) throw new Error("choose check, manifest or search; see --help");
+    if (!["check", "manifest", "search", "files", "read"].includes(action)) throw new Error("choose check, manifest, search, files or read; see --help");
     const index = args.indexOf("--resources");
     if (index < 0 || !args[index + 1]) throw new Error("--resources is required");
     const resources = resolve(args[index + 1]);
