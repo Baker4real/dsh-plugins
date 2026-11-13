@@ -28,3 +28,7 @@ Node.js ESM；Cordis Host `webServer` 路由 + Web Client module；`node:test`�
 ## 当前状态
 
 2026-11-09：0.2.1 已在本机安装，两个模型均完成真实出图；离线测试和真实 LevelDB 回读通过。CDP 实机读取因 Edge 连接超时未验证，不能宣称该路径已 live verified。后续只在上游契约变化、运行异常或 CDP 可用时继续，无额外待办功能。
+
+2026-11-13：办公室也装了 0.2.1。那边的 `D:\agents\projects\dsh-plugins\dsh-gpt-image-playground-magpie` 是 a55824e 的 zip 快照，不是 Git 检出，提交与 zip 哈希记在同机的 `D:\agents\projects\dsh-plugins\OFFICE-SNAPSHOT.json`；本目录源码改了要重新传过去再装，步骤参考证据目录的 `step5a-staging.ps1`、`step5b-plugins.ps1`。办公室实机验收：路由 models 200、跨源 403、非 allowlist 路径 404，两个模型各出一张 1024×1024 PNG，用户导入配置后 LevelDB 回读 6 项检查全过。证据在家里的 `D:\agents\run-evidence\office-dsh-magpie-image-20261113\`。
+
+模型范围：只接上面两个幻灵模型。magpie 里的 `codex/gpt-image-2` 是用户 2026-11-13 明确不要的。
