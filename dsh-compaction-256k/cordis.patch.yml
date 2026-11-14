@@ -75,7 +75,7 @@
           - id: compaction-basic
             name: "@local/dsh-compaction-256k"
             config:
-              thresholdTokens: 262144
+              thresholdTokens: 466944
           - id: command-compact
             name: "@deepseek-ai/dsh-command-compact"
           - id: tool-result-pruner
@@ -201,7 +201,7 @@
           - id: compaction-basic
             name: "@local/dsh-compaction-256k"
             config:
-              thresholdTokens: 262144
+              thresholdTokens: 466944
           - id: command-compact
             name: "@deepseek-ai/dsh-command-compact"
           - id: tool-result-pruner
@@ -288,7 +288,7 @@
           - id: compaction-basic
             name: "@local/dsh-compaction-256k"
             config:
-              thresholdTokens: 262144
+              thresholdTokens: 466944
           - id: command-compact
             name: "@deepseek-ai/dsh-command-compact"
       - id: persistent-shell
@@ -405,7 +405,7 @@
           - id: compaction-basic
             name: "@local/dsh-compaction-256k"
             config:
-              thresholdTokens: 262144
+              thresholdTokens: 466944
           - id: command-compact
             name: "@deepseek-ai/dsh-command-compact"
           - id: tool-result-pruner

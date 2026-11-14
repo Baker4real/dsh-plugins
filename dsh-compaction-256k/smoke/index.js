@@ -3,6 +3,9 @@ import { mkdir, writeFile } from "node:fs/promises";
 
 export const inject = ["agentLoop", "agentPresets", "sessionProjections", "tools"];
 
+// Must match thresholdTokens in ../cordis.patch.yml.
+const EXPECTED_THRESHOLD_TOKENS = 456 * 1024;
+
 async function verifyCompactInspect(ctx, agent) {
   const fullTool = ctx.tools.get("cordis_inspect_query", agent);
   const compactTool = ctx.tools.get("cordis_inspect_compact", agent);
@@ -59,11 +62,11 @@ export async function apply(ctx) {
     result = {
       status: engineClass === "ConfigurableThresholdCompactionEngine"
         && preset === "cordis"
-        && engine?.thresholdTokens === 262144
+        && engine?.thresholdTokens === EXPECTED_THRESHOLD_TOKENS
         && engine?.config.headroomTokens === 65536
         && engine?.config.retainRatio === 0.16
         && engine?.config.compactionRetries === 1
-        && compactionSettings?.thresholdTokens === 262144
+        && compactionSettings?.thresholdTokens === EXPECTED_THRESHOLD_TOKENS
         && compactionSettings?.auto === true
         && compactInspect.status === "pass"
         && pluginManagerFiltered ? "pass" : "fail",

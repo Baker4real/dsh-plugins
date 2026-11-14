@@ -29,4 +29,4 @@ Node.js ESM、Cordis 插件、YAML composition、DSH compaction API、Node 内�
 
 ## 当前状态
 
-四个 Agent 预设均使用本地可配置阈值引擎，当前为 262,144；余量 UI 单独安装。维护与验收细节以 `D:/Codex/.codex/docs/agent-guidance/host-runbook/dsh-compaction.md` 为准；上游预设变化后必须重放完整覆盖并重新跑测试和 smoke。
+四个 Agent 预设均使用本地可配置阈值引擎，当前为 466,944（456 × 1024）；余量 UI 单独安装。维护与验收细节以 `D:/Codex/.codex/docs/agent-guidance/host-runbook/dsh-compaction.md` 为准；上游预设变化后必须重放完整覆盖并重新跑测试和 smoke。

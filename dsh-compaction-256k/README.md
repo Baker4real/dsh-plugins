@@ -29,7 +29,7 @@ min(thresholdTokens, floor(min(W × thresholdRatio, W − O − headroomTokens))
     thresholdTokens: 131072
 ```
 
-当前 `cordis.patch.yml` 在四个预设中均显式配置 `thresholdTokens: 262144`。
+当前 `cordis.patch.yml` 在四个预设中均显式配置 `thresholdTokens: 466944`（456 × 1024）。
 
 ## 压缩余量 UI
 
