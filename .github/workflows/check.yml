@@ -80,5 +80,6 @@ jobs:
         with:
           node-version: 24
       - run: pnpm install --frozen-lockfile
-      # Plain Node skips the local-bundle-check tests, which need DSH's bundled Node and pnpm.
-      - run: node --test tests/*.test.js daily-update-guards/tests/*.test.js
+      # Plain Node skips the local-bundle-check tests, which need DSH's bundled Node and pnpm. daily-update-guards/tests
+      # stays in the local check: its native preflight runs D:/Codex/.codex/scripts/Invoke-CheckedPowerShell.ps1.
+      - run: node --test tests/*.test.js

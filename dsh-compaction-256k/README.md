@@ -78,7 +78,7 @@ DSH 内使用现有 Host `Source.searchFile`。Codex 未暴露该 Provider 时�
 
 ## 验证
 
-- 完整门禁：使用 DSH bundled Node 24+ 运行 `pnpm run check`，覆盖主 bundle、`context-meter/`、`daily-update-guards/`、`smoke/` 的语法和全部测试。仓库 CI 的 `compaction-tests` job 在 windows-latest 用普通 Node 24 跑 `tests/` 和 `daily-update-guards/tests/`；`local-bundle-check` 的 5 个测试需要 DSH 自带的 Node 和 pnpm，在普通 Node 下标为跳过，只有本地完整门禁会跑。
+- 完整门禁：使用 DSH bundled Node 24+ 运行 `pnpm run check`，覆盖主 bundle、`context-meter/`、`daily-update-guards/`、`smoke/` 的语法和全部测试。仓库 CI 的 `compaction-tests` job 在 windows-latest 用普通 Node 24 跑 `tests/`；`local-bundle-check` 的 5 个测试需要 DSH 自带的 Node 和 pnpm，在普通 Node 下标为跳过。`daily-update-guards/tests/` 的原生预检要调用本机的 `D:/Codex/.codex/scripts/Invoke-CheckedPowerShell.ps1`，不进 CI。这两部分只有本地完整门禁会跑。
 - 运行态：用 Host `Preset.listEntries` 检查四个预设的自定义引擎、阈值配置和诊断。Client `Slots.listSubTree` 只证明 occupant 已注册，不证明数据或 DOM 正确。
 - 会话投影：`node scripts/dsh-desktop.mjs projections [--since <ISO 时间>] [--limit 1..50]` 用普通 Node 只读 `$DSH_HOME`（默认 `~/.dsh`）下的 `storages/session_projcache/sessions/*.json`，按缓存更新时间倒序列出每个会话的创建时间、`agentPreset`、`compactionSettings`、`contextPressure` 和压缩次数，不输出标题、待办、工作目录或消息。它回答「这个会话按什么阈值算、离触发还有多远、压缩过几次」，不证明引擎实例已换新。会话日志 `~/.dsh/sessions/**/session.v4.jsonl.zstd` 是多帧 zstd，Node 24 的 `zlib.zstdDecompressSync` 实测只解出第一帧；读日志全文用 `py -3.14 D:/agents/skills-manager/skills/retro/scripts/transcripts.py`。
 - 新会话：安装 `smoke/` 下的一次性 bundle，读取 `D:/agents/run-evidence/dsh-compaction-256k/smoke-result.json`，然后移除 smoke bundle。结果覆盖 Host 引擎、真实 `compactionSettings` 投影，以及紧凑 Inspect 相对原工具的字符缩减；任一失败都不能验收。
