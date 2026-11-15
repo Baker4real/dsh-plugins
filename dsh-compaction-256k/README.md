@@ -29,7 +29,7 @@ min(thresholdTokens, floor(min(W × thresholdRatio, W − O − headroomTokens))
     thresholdTokens: 131072
 ```
 
-当前 `cordis.patch.yml` 在四个预设中均显式配置 `thresholdTokens: 466944`（456 × 1024）。
+`cordis.patch.yml` 在四个预设中显式配置同一个 `thresholdTokens`，当前值只写在该文件里：`tests/preset-patch.test.js` 检查四处一致，`smoke/` 从加载后的 `cordis` 预设读回该值再比对引擎和投影。
 
 ## 压缩余量 UI
 
@@ -45,11 +45,11 @@ min(thresholdTokens, floor(min(W × thresholdRatio, W − O − headroomTokens))
 
 ## 使用
 
-通过 `plugin_manager` 安装项目根目录，提供压缩引擎、Inspect 和清单工具；需要余量 UI 时再单独安装 `context-meter/`。已有会话保留启动时的预设修订；验收必须包含新会话。不要直接编辑 profile 的 `package.json` 或 `cordis.patch.yml`。
+通过 `plugin_manager` 安装项目根目录，提供压缩引擎、Inspect 和清单工具；需要余量 UI 时再单独安装 `context-meter/`。已有会话何时换用新配置见 `D:/Codex/.codex/docs/agent-guidance/host-runbook/dsh-compaction.md`「先确定作用域」；验收必须包含新会话。不要直接编辑 profile 的 `package.json` 或 `cordis.patch.yml`。
 
 本项目提供的 `plugin_manager` 在安装项目根、`context-meter/` 或 `daily-update-guards/`，以及重新启用相应 bundle 或插件行之前，自动执行本地检查：确认工具注册时捕获的宿主版本与磁盘版本一致，核对实际宿主包、本地测试包和精确版本 pin，再使用 bundled Node/pnpm 执行现有 `check`。失败时管理调用不执行，成功结果含 `localValidation`。`agent-reliability/` 不在这组预检内，按其[独立检查](agent-reliability/README.md#使用与验证)验收；关闭、卸载和其他包不受预检阻挡。
 
-升级前先运行下面的独立检查，避免先卸载旧包后才发现检查失败。官方 GUI 直接切换、手工操作和 linked 源码监听不经过本项目的 Agent 工具，也先运行此入口；检查只证明该时点的源码和运行时，线上验收仍按下节进行。
+升级前先运行下面的独立检查，避免先卸载旧包后才发现检查失败。官方 GUI 直接切换、手工操作和 linked 源码改动不经过本项目的 Agent 工具，也先运行此入口；linked 安装下 bundle 自己的 `cordis.patch.yml` 不在宿主的配置监听里，改了不会重新协调，要等一次 `plugin_manager` 操作或重启 DSH 才生效。检查只证明该时点的源码和运行时，线上验收仍按下节进行。
 
 ```powershell
 $desktop = 'D:/Users/WINDOWS/AppData/Local/Programs/DeepSeek Harness'
@@ -70,7 +70,7 @@ DSH 内使用现有 Host `Source.searchFile`。Codex 未暴露该 Provider 时�
 & $node 'D:/agents/projects/dsh-plugins/dsh-compaction-256k/scripts/dsh-desktop.mjs' read --resources "$desktop/resources" --package '@deepseek-ai/dsh-session-projection' --file 'lib/index.js' --start-line 1 --max-lines 80
 ```
 
-四个命令都以包目录为边界，单文件最多 2 MiB，每行最多 500 字符，总 JSON 最多 50,000 字符。`search` 返回最多 100 行，`totalMatches` 与 `truncated` 说明省略情况；`files` 按名字排序，每页最多 100 项，用 `nextOffset` 翻页；`read` 每次最多 200 行，用 `nextLine` 续读。每个命令只接受自己的参数，带了别的命令的参数直接报错。路径、包名、参数或读取失败均退出非零；真实零命中返回空数组。只读工具不访问 profile、cookie 或会话历史，也不解包、替换官方产物。
+四个命令都以包目录为边界，单文件最多 2 MiB，每行最多 500 字符，总 JSON 最多 50,000 字符。`search` 返回最多 100 行，`--context` 只接受 0–5，`totalMatches` 与 `truncated` 说明省略情况；`files` 按名字排序，每页最多 100 项，用 `nextOffset` 翻页；`read` 每次最多 200 行，用 `nextLine` 续读。每个命令只接受自己的参数，带了别的命令的参数直接报错。路径、包名、参数或读取失败均退出非零；真实零命中返回空数组。只读工具不访问 profile、cookie 或会话历史，也不解包、替换官方产物。
 
 ## 紧凑 Inspect
 
@@ -78,8 +78,9 @@ DSH 内使用现有 Host `Source.searchFile`。Codex 未暴露该 Provider 时�
 
 ## 验证
 
-- 完整门禁：使用 DSH bundled Node 24+ 运行 `pnpm run check`，覆盖主 bundle、`context-meter/`、`daily-update-guards/`、`smoke/` 的语法和全部测试。
+- 完整门禁：使用 DSH bundled Node 24+ 运行 `pnpm run check`，覆盖主 bundle、`context-meter/`、`daily-update-guards/`、`smoke/` 的语法和全部测试。仓库 CI 的 `compaction-tests` job 在 windows-latest 用普通 Node 24 跑 `tests/` 和 `daily-update-guards/tests/`；`local-bundle-check` 的 5 个测试需要 DSH 自带的 Node 和 pnpm，在普通 Node 下标为跳过，只有本地完整门禁会跑。
 - 运行态：用 Host `Preset.listEntries` 检查四个预设的自定义引擎、阈值配置和诊断。Client `Slots.listSubTree` 只证明 occupant 已注册，不证明数据或 DOM 正确。
+- 会话投影：`node scripts/dsh-desktop.mjs projections [--since <ISO 时间>] [--limit 1..50]` 用普通 Node 只读 `$DSH_HOME`（默认 `~/.dsh`）下的 `storages/session_projcache/sessions/*.json`，按缓存更新时间倒序列出每个会话的创建时间、`agentPreset`、`compactionSettings`、`contextPressure` 和压缩次数，不输出标题、待办、工作目录或消息。它回答「这个会话按什么阈值算、离触发还有多远、压缩过几次」，不证明引擎实例已换新。会话日志 `~/.dsh/sessions/**/session.v4.jsonl.zstd` 是多帧 zstd，Node 24 的 `zlib.zstdDecompressSync` 实测只解出第一帧；读日志全文用 `py -3.14 D:/agents/skills-manager/skills/retro/scripts/transcripts.py`。
 - 新会话：安装 `smoke/` 下的一次性 bundle，读取 `D:/agents/run-evidence/dsh-compaction-256k/smoke-result.json`，然后移除 smoke bundle。结果覆盖 Host 引擎、真实 `compactionSettings` 投影，以及紧凑 Inspect 相对原工具的字符缩减；任一失败都不能验收。
 - Retro Host 回归：`smoke/retro/` 是无模型请求的一次性 fixture，验证原生技能目录、完整正文→重复短回执→显式重载、原生定义身份及命令预检正负控制，结果写入 `D:/agents/run-evidence/retro-improvements/20261111/host-smoke.json`。通过 `plugin_manager` 安装后读取结果，再移除 fixture。旧 Host 仍缓存旧模块时保留 `pending-runtime-reload`；须在新 Host 重跑，不以包文件或 applied 状态代替运行代次。fixture 是一次性验收工具，省略库存 locale 和图标。
 - 真实 UI：先打开一个包含余量组件的会话，在已连接且已鉴权的 Harness 页面运行 `node smoke/ui-smoke.mjs`。Desktop 没有可见 URL 时，可临时安装 `smoke/opener/`，它调用官方 handoff 打开鉴权页面但不打印或返回令牌；页面打开后立即移除 opener。脚本优先只读复用页面，读取 `[data-compaction-remaining]` 的百分比、阈值和可见文本；没有现有页面时才打开默认本机地址，并在结束后关闭自己创建的失败标签。鉴权页、首页、缺失元素或非法数值均失败，结果写入 `D:/agents/run-evidence/dsh-compaction-256k/ui-smoke-result.json`。

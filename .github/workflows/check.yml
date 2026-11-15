@@ -62,3 +62,23 @@ jobs:
           node-version: 24
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm run test:native-titlebar
+
+  compaction-tests:
+    # run-check-process.mjs kills process trees with taskkill, so its tests need Windows.
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: dsh-compaction-256k
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.5
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: pnpm install --frozen-lockfile
+      # Plain Node skips the local-bundle-check tests, which need DSH's bundled Node and pnpm.
+      - run: node --test tests/*.test.js daily-update-guards/tests/*.test.js

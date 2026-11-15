@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, writeFile, symlink, access } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +12,11 @@ const evidence = resolve(here, "../../../../run-evidence/dsh-compaction-256k/che
 const runtimeNode = process.env.npm_node_execpath || process.execPath;
 const runtimeNodeVersion = spawnSync(runtimeNode, ["--version"], { encoding: "utf8", windowsHide: true }).stdout.trim();
 const dependencies = resolve(dirname(runtimeNode), "../..");
+// The fixture links the current runtime's node/ and pnpm/ directories, which only DSH's bundled runtime lays out side
+// by side; plain Node (CI, a system install) skips these tests instead of failing on a missing node.exe.
+const bundledRuntime = {
+  skip: ["node", "pnpm"].every((name) => existsSync(join(dependencies, name))) ? false : "needs DSH's bundled Node and pnpm (pnpm run check under the bundled Node)",
+};
 
 async function json(path, value) {
   await mkdir(dirname(path), { recursive: true });
@@ -35,7 +41,7 @@ async function fixture(hostProjectionVersion = "0.2.2-rc.1", checkExit = 0) {
   return { root, resources, project, marker: join(project, "checked.txt") };
 }
 
-test("the check CLI rejects a host SDK mismatch before running the project's checks", async () => {
+test("the check CLI rejects a host SDK mismatch before running the project's checks", bundledRuntime, async () => {
   const f = await fixture("0.2.3");
   const result = spawnSync(process.execPath, [cli, "--resources", f.resources, "--project-root", f.project], { encoding: "utf8", windowsHide: true });
   assert.equal(result.status, 1);
@@ -43,7 +49,7 @@ test("the check CLI rejects a host SDK mismatch before running the project's che
   await assert.rejects(access(f.marker));
 });
 
-test("the check CLI runs the existing check with bundled Node and reports the exact host/test versions", async () => {
+test("the check CLI runs the existing check with bundled Node and reports the exact host/test versions", bundledRuntime, async () => {
   const f = await fixture();
   const result = spawnSync(process.execPath, [cli, "--resources", f.resources, "--project-root", f.project], { encoding: "utf8", windowsHide: true });
   assert.equal(result.status, 0, result.stderr);
@@ -55,7 +61,7 @@ test("the check CLI runs the existing check with bundled Node and reports the ex
   await access(f.marker);
 });
 
-test("the check CLI runs through an alias after its source directory moves", async () => {
+test("the check CLI runs through an alias after its source directory moves", bundledRuntime, async () => {
   const f = await fixture();
   const entryAlias = join(f.root, "check-entry.mjs");
   await symlink(cli, entryAlias, "file");
@@ -66,7 +72,7 @@ test("the check CLI runs through an alias after its source directory moves", asy
   await access(f.marker);
 });
 
-test("a failed project check exits nonzero and never emits a passed report", async () => {
+test("a failed project check exits nonzero and never emits a passed report", bundledRuntime, async () => {
   const f = await fixture("0.2.2-rc.1", 7);
   const result = spawnSync(process.execPath, [cli, "--resources", f.resources, "--project-root", f.project], { encoding: "utf8", windowsHide: true });
   assert.equal(result.status, 1);
@@ -75,7 +81,7 @@ test("a failed project check exits nonzero and never emits a passed report", asy
   await access(f.marker);
 });
 
-test("a still-running older host cannot accept validation against a newly installed runtime", async () => {
+test("a still-running older host cannot accept validation against a newly installed runtime", bundledRuntime, async () => {
   const f = await fixture();
   const result = spawnSync(process.execPath, [cli, "--resources", f.resources, "--project-root", f.project, "--expected-host-version", "0.2.1"], { encoding: "utf8", windowsHide: true });
   assert.equal(result.status, 1);

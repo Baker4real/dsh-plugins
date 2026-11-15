@@ -3,8 +3,22 @@ import { mkdir, writeFile } from "node:fs/promises";
 
 export const inject = ["agentLoop", "agentPresets", "sessionProjections", "tools"];
 
-// Must match thresholdTokens in ../cordis.patch.yml.
-const EXPECTED_THRESHOLD_TOKENS = 456 * 1024;
+const ENGINE_PACKAGE = "@local/dsh-compaction-256k";
+
+function flattenRows(rows, found = []) {
+  for (const row of rows ?? []) {
+    if (row.group === true) flattenRows(row.config, found);
+    else found.push(row);
+  }
+  return found;
+}
+
+// The loaded cordis preset definition carries the value from ../cordis.patch.yml; the smoke checks that the
+// running engine and the session projection both use it, so the threshold is written down in one place only.
+function declaredThresholdTokens(ctx) {
+  const plugins = ctx.agentPresets.definitions.get("cordis")?.config.plugins;
+  return flattenRows(plugins).find((row) => row.name === ENGINE_PACKAGE)?.config?.thresholdTokens ?? null;
+}
 
 async function verifyCompactInspect(ctx, agent) {
   const fullTool = ctx.tools.get("cordis_inspect_query", agent);
@@ -59,14 +73,16 @@ export async function apply(ctx) {
     const pluginManagerFiltered = Object.hasOwn(parameters, "name") && Object.hasOwn(parameters, "summary");
     const compactionSettings = ctx.sessionProjections.snapshot(handle.agent.session).values.compactionSettings ?? null;
     const compactInspect = await verifyCompactInspect(ctx, handle.agent);
+    const declaredThreshold = declaredThresholdTokens(ctx);
     result = {
       status: engineClass === "ConfigurableThresholdCompactionEngine"
         && preset === "cordis"
-        && engine?.thresholdTokens === EXPECTED_THRESHOLD_TOKENS
+        && Number.isInteger(declaredThreshold)
+        && engine?.thresholdTokens === declaredThreshold
         && engine?.config.headroomTokens === 65536
         && engine?.config.retainRatio === 0.16
         && engine?.config.compactionRetries === 1
-        && compactionSettings?.thresholdTokens === EXPECTED_THRESHOLD_TOKENS
+        && compactionSettings?.thresholdTokens === declaredThreshold
         && compactionSettings?.auto === true
         && compactInspect.status === "pass"
         && pluginManagerFiltered ? "pass" : "fail",
@@ -74,6 +90,7 @@ export async function apply(ctx) {
       preset,
       engineClass,
       automaticCompaction: engine?.config.auto ?? null,
+      declaredThresholdTokens: declaredThreshold,
       thresholdTokens: engine?.thresholdTokens ?? null,
       compactionSettings,
       compactInspect,
