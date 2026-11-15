@@ -8,7 +8,7 @@ Agent 先向用户说清剩余的一个人工动作，再读取当前目标，�
 
 `exec.concludeTurn()` 会立即结束本轮，模型不会在工具之后再补 final 提示，因此可读的人工动作和等待原因必须在调用前告诉用户。
 
-进入等待只允许精确 live Agent 的活动 driver 调用；该 Agent 必须属于 `ctx.agents.roots()`，当前 Turn 必须含直接人工消息，或原目标精确 revision 的正编号 Goal round。子代理、工具结果、定时任务和普通系统消息不能登记或恢复人工等待。工具名和参数由当前宿主 `defineTool()` 编译器生成并校验。
+进入等待只允许精确 live Agent 的活动 driver 调用；该 Agent 必须是顶层 Agent，即会话头 `origin` 不是 `subagent`（DSH 0.2.2-rc.2 删除了 `ctx.agents.roots()`，官方迁移指南改用这一判断），当前 Turn 必须含直接人工消息，或原目标精确 revision 的正编号 Goal round。子代理、工具结果、定时任务和普通系统消息不能登记或恢复人工等待。工具名和参数由当前宿主 `defineTool()` 编译器生成并校验。
 
 这是显式能力：模型需要选择 `wait_goal`。本包不会根据回复中的“等你”“请确认”等文字猜测授权，也不替换官方 `get_goal` / `update_goal`。
 
@@ -101,4 +101,4 @@ Agent 先向用户说清剩余的一个人工动作，再读取当前目标，�
 
 已通过的完整跨包与进程证据位于 `D:/Codex/evidence/dsh-goal-wait-20261110/cross-installer-a21abcf4-253f-40ab-ae0f-aba90156d976/`；原 fixture、Explorer worker 与重开 fixture 的实际 exit code 均为 0，launcher 和 observer 同样退出。`cross-cleanup.json` 另核对了此前失败调试 fixture 也无存活进程。1.0.1 的 Config/fresh-entry 与 early-human 修复之后仅重跑相关回归并做真实激活，未重复该跨包测试。
 
-兼容基线为官方 `@deepseek-ai/*` 0.2.2-rc.1。此版本公开 manifest 中部分 `.d.ts` 导出实际缺失，因此开发依据当前 Inspect 契约及已安装 JS，并用真实官方 runtime 验证。更换宿主版本后先重新运行 check。
+兼容基线为官方 `@deepseek-ai/*` 0.2.2-rc.1、0.2.2-rc.2 与 0.2.2-rc.3；`engines.dsh` 和宿主包 peer 只列这三个已跑通 check 的版本。运行时导入的宿主包（`@deepseek-ai/dsh-llm`、`@deepseek-ai/dsh-tools`、`zod`）必须写进 `peerDependencies`：DSH 只替链接安装的插件解析声明过的宿主包（rc.1 起即如此），未声明的回落到普通 Node 解析。本包此前没有声明，2026-11-14 在 rc.3 上发现无法加载，补上声明后已在真实客户端确认激活；rc.1、rc.2 上是否真实加载过没有记录。check 静态核对 peer 与运行时导入一致，测试用的解析钩子也只替运行时模块路由声明过的宿主包；Harness 的真实解析仍以客户端激活为准。0.2.2-rc.1 公开 manifest 中部分 `.d.ts` 导出实际缺失，因此开发依据当前 Inspect 契约及已安装 JS，并用真实官方 runtime 验证。更换宿主版本后先重新运行 check。

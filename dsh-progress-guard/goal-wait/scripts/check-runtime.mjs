@@ -7,6 +7,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const installed = process.env.DSH_GOAL_WAIT_DSH_ROOT || 'D:/Users/WINDOWS/AppData/Local/Programs/DeepSeek Harness/resources/app.asar/dsh';
+// Host releases this package was verified against; engines.dsh must list exactly these.
+const verifiedHostVersions = ['0.2.2-rc.1', '0.2.2-rc.2', '0.2.2-rc.3'];
 const checks = [];
 const report = { schemaVersion: 1, status: 'failed', packageName: '@local/dsh-goal-wait', checks };
 const bound = value => String(value?.message ?? value).slice(-10000);
@@ -41,8 +43,9 @@ function main() {
     for (const name of ['@deepseek-ai/dsh-goal', '@deepseek-ai/dsh-goal-round-driver', '@deepseek-ai/dsh-tools', '@deepseek-ai/dsh-session', '@deepseek-ai/dsh-session-projection', '@deepseek-ai/dsh-agent-loop']) {
       require.resolve(name);
       versions[name] = require(`${name}/package.json`).version;
-      assert.equal(versions[name], '0.2.2-rc.1');
+      assert.ok(verifiedHostVersions.includes(versions[name]), `${name}@${versions[name]} is not a verified Host version.`);
     }
+    assert.equal(new Set(Object.values(versions)).size, 1, 'Host packages must come from one DSH release.');
     return { electron: process.versions.electron, node: process.versions.node, versions };
   })) return;
   let files;
@@ -50,11 +53,10 @@ function main() {
     const manifest = JSON.parse(text('package.json'));
     assert.equal(manifest.name, '@local/dsh-goal-wait');
     assert.equal(manifest.type, 'module');
-    assert.equal(manifest.engines.dsh, '0.2.2-rc.1');
+    assert.equal(manifest.engines.dsh, verifiedHostVersions.join(' || '));
     assert.equal(manifest.scripts.check, 'node scripts/check.mjs');
     assert.equal(manifest.dsh.bundle.patch, './cordis.patch.yml');
     assert.equal(manifest.dependencies, undefined, 'Reuse Host packages; no package installation is needed.');
-    assert.equal(manifest.peerDependencies, undefined, 'Shipped Host packages resolve through Harness.');
     files = new Set(manifest.files.flatMap(expand));
     for (const required of ['index.js', 'state.js', 'receipt.js', 'cordis.patch.yml', 'README.md', 'icon.svg', 'locale/en.json', 'locale/zh.json', 'scripts/check.mjs', 'scripts/check-runtime.mjs', 'scripts/runtime-loader.mjs']) assert.ok(files.has(required), `Missing resource: ${required}`);
     for (const [key, target] of Object.entries(manifest.exports)) for (const file of expand(target)) assert.ok(files.has(file), `Export missing from files: ${key}`);
@@ -69,6 +71,17 @@ function main() {
         assert.ok(files.has(dependency), `Dependency missing from distribution: ${file} -> ${dependency}`);
       }
     }
+    // DSH gives a linked bundle a shipped Host package only when a package.json at or above the importing file lists it
+    // in peerDependencies (probed on 0.2.2-rc.1 on 2026-11-09, hit again on 0.2.2-rc.3); any other bare import falls back
+    // to plain Node resolution, which finds nothing because this package installs no dependencies.
+    // scripts/runtime-loader.mjs applies the same rule to the runtime modules the tests load.
+    const hostImports = new Set();
+    for (const file of files) {
+      if (!/\.[cm]?js$/.test(file) || /^(?:scripts|tests)\//.test(file)) continue;
+      for (const match of text(file).matchAll(/\b(?:from\s*|import\s*\(\s*|import\s*)['"]((?:@[^/'"]+\/)?[^./'"][^/'"]*)/g)) if (!match[1].startsWith('node:')) hostImports.add(match[1]);
+    }
+    assert.deepEqual(Object.keys(manifest.peerDependencies ?? {}).sort(), [...hostImports].sort(), 'peerDependencies must list exactly the Host packages the runtime imports.');
+    for (const name of hostImports) if (name.startsWith('@deepseek-ai/')) assert.equal(manifest.peerDependencies[name], verifiedHostVersions.join(' || '), `${name} must list exactly the verified Host versions.`);
     for (const language of ['en', 'zh']) {
       const locale = JSON.parse(text(`locale/${language}.json`));
       assert.ok(locale.meta.title.trim() && locale.meta.description.trim());
@@ -78,7 +91,7 @@ function main() {
     assert.match(icon, /^<svg\s[^>]*xmlns="http:\/\/www\.w3\.org\/2000\/svg"[\s\S]*<\/svg>\s*$/);
     assert.ok(Buffer.byteLength(icon) <= 256 * 1024);
     assert.doesNotMatch(icon, /<script\b|\bon\w+\s*=|(?:href|src)\s*=/i);
-    return { distributionFiles: files.size, locales: ['zh', 'en'], icon: 'original inline SVG; installed rendering requires main-agent verification' };
+    return { distributionFiles: files.size, hostPeers: [...hostImports].sort(), locales: ['zh', 'en'], icon:'original inline SVG; installed rendering requires main-agent verification' };
   })) return;
   if (!stage('syntax', () => {
     const sources = [...files].filter(file => /\.[cm]?js$/.test(file));

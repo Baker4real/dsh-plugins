@@ -7,7 +7,7 @@ intent: 说明独立插件的修复行为、安装边界、验证和回滚方式
 
 # 进度防复读
 
-本插件的已验证基线是 DeepSeek Harness 0.2.2-rc.1；后续宿主升级应重新核对版本、Slot 和依赖。独立 bundle 为 `@local/dsh-progress-guard`，源码位于 D 盘，通过 desktop profile 链接加载。插件自身不写入官方包；加载排查曾修改正式 ASAR，该残留状态与处理见 [实施验证](docs/verification.md)。
+本插件的已验证基线是 DeepSeek Harness 0.2.2-rc.3（2026-11-14 跑通 check，并在 rc.3 真实客户端确认 Host 投影已激活；客户端 Slot 的真实界面验证仍停在 0.2.2-rc.1）；后续宿主升级应重新核对版本、Slot 和依赖。独立 bundle 为 `@local/dsh-progress-guard`，源码位于 D 盘，通过 desktop profile 链接加载。插件自身不写入官方包；加载排查曾修改正式 ASAR，该残留状态与处理见 [实施验证](docs/verification.md)。
 
 ## 行为
 
@@ -52,7 +52,7 @@ Client 在插槽声明出现后订阅条目变化，等待官方 `assistant-step
 & 'D:/Codex/tools/bin/node.exe' ./scripts/check.mjs --runtime 'D:/Users/WINDOWS/AppData/Local/Programs/DeepSeek Harness/DeepSeek Harness.exe' --resources 'D:/Users/WINDOWS/AppData/Local/Programs/DeepSeek Harness/resources'
 ```
 
-`--resources` 接受桌面 resources 目录、app.asar 路径或其 dsh 根目录。显式参数优先于环境变量。普通 Node 不直接读 ASAR；测试在 Electron 内解析当前所选安装包的 Cordis、Session、SessionProjectionRegistry、LLM 和 zod，不安装第二份宿主依赖，也不依赖旧机器日志。[事故重放夹具](tests/fixtures/incident-replay.json) 是短小脱敏的项目资源，保留重复文字、穿插工具步骤和 replayState 结构。
+`--resources` 接受桌面 resources 目录、app.asar 路径或其 dsh 根目录。显式参数优先于环境变量。普通 Node 不直接读 ASAR；测试在 Electron 内解析当前所选安装包的 Cordis、Session、SessionProjectionRegistry、LLM 和 zod，不安装第二份宿主依赖，也不依赖旧机器日志。解析钩子与宿主一致：本包运行时模块只拿得到本包或上层 `package.json` 的 `peerDependencies` 声明过的宿主包，测试、脚本和子目录里的独立 bundle 不受此限。[事故重放夹具](tests/fixtures/incident-replay.json) 是短小脱敏的项目资源，保留重复文字、穿插工具步骤和 replayState 结构。
 
 校验覆盖清单声明、分发文件与相对模块依赖闭包、locale、内联 SVG icon、JavaScript 语法、独立的 Client 生命周期边界和真实 Host 行为。Client 生命周期使用 VM 执行 ModuleLoader 注册，不模拟 React/DOM；`coverage.clientLifecycle` 与 `coverage.clientRuntime` 分别报告，前者通过不能代替真实页面验收。缺少生命周期测试时明确返回 `not-covered`，不能从语法通过推断行为覆盖。[CLI 回归测试](tests/check-cli.test.js) 在必要输入的临时副本上验证缺 icon、Client 语法错误、Host 断言失败、正常报告和缺失生命周期覆盖，不改活动源码做反证。
 

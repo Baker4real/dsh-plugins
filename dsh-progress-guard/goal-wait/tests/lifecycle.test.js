@@ -47,7 +47,8 @@ test('a child agent human-looking message cannot enter a human wait', async () =
   const f = await fixture();
   let detach;
   try {
-    const session = f.ctx.sessions.create(SessionId('goal-wait-child'));
+    // Delegated sessions carry origin "subagent" (the subagent service sets it on rc.1 and rc.2).
+    const session = f.ctx.sessions.create(SessionId('goal-wait-child'), { meta: { parentSession: f.session.id, origin: 'subagent', delegationDepth: 1 } });
     const child = { ...f.agent, id: session.id, session, status: 'running' };
     detach = f.ctx.agents.enter(child, f.agent);
     await f.ctx.agents.announce(child, 'startup');

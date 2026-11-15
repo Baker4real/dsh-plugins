@@ -1,6 +1,6 @@
 # 来源与读取保障
 
-此 Host bundle 包装已挂载工具并使用官方 `llm/stream` 扩展点。它不改写 DSH、GenUI 或 Magpie 的发行文件，也不改写用户的 profile 配置文件。支持的宿主基线是 DSH 0.2.2-rc.1。
+此 Host bundle 包装已挂载工具并使用官方 `llm/stream` 扩展点。它不改写 DSH、GenUI 或 Magpie 的发行文件，也不改写用户的 profile 配置文件。支持的宿主基线是 DSH 0.2.2-rc.1、0.2.2-rc.2 与 0.2.2-rc.3（rc.3 于 2026-11-14 跑通 check）。
 
 ## 能力与范围
 

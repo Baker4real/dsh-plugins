@@ -75,11 +75,15 @@ export class ProjectValidationGate {
 
 /** Attribute a contribution to its live top-level owner, so reviewers never owe another Agent's UI check. */
 export function deliveryOwner(registry, agent) {
+  // DSH 0.2.2-rc.2 removed AgentRegistry.roots() and isOwnedBy(). Like the official subagent service, follow
+  // session headers: origin 'subagent' marks a delegated session and parentSession names its direct creator
+  // (rc.1's subagent service writes the same fields; ordinary forks may keep parentSession, so origin decides).
   const all = registry.list();
-  const roots = new Set(registry.roots().map(root => root.id));
+  const visited = new Set();
   let current = agent;
-  for (let count = 0; count <= all.length && !roots.has(current.id); count++) {
-    const parent = all.find(candidate => registry.isOwnedBy(current.id, candidate));
+  while (current.session.header.origin === 'subagent' && !visited.has(current.id)) {
+    visited.add(current.id);
+    const parent = all.find(candidate => candidate.session.id === current.session.header.parentSession);
     if (parent === undefined) break;
     current = parent;
   }

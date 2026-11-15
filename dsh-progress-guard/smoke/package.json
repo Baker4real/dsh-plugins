@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "exports": { ".": "./run.js" },
-  "peerDependencies": { "@deepseek-ai/dsh-llm": "0.2.2-rc.1", "@deepseek-ai/dsh-tools": "0.2.2-rc.1" },
+  "peerDependencies": { "@deepseek-ai/dsh-llm": "0.2.2-rc.1 || 0.2.2-rc.2 || 0.2.2-rc.3", "@deepseek-ai/dsh-tools": "0.2.2-rc.1 || 0.2.2-rc.2 || 0.2.2-rc.3" },
   "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
 }

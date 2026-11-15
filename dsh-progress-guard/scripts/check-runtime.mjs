@@ -20,11 +20,35 @@ function runtimeAnchor(resources) {
   throw new Error('Cannot locate the installed DSH package under --resources (resources directory, app.asar, or dsh root).');
 }
 
+// Like DSH for a linked bundle, this package's runtime modules get the shipped Host copy only for a package that a
+// package.json at or above them lists in peerDependencies, so an undeclared import fails here as it does in the client.
+// Tests, scripts and the nested bundles (which run their own checks) may import any Host package.
+function declaredPeers(file) {
+  const peers = new Set();
+  for (let directory = dirname(file); ; directory = dirname(directory)) {
+    const manifest = join(directory, 'package.json');
+    if (existsSync(manifest)) for (const name of Object.keys(JSON.parse(readFileSync(manifest, 'utf8')).peerDependencies ?? {})) peers.add(name);
+    if (dirname(directory) === directory) return peers;
+  }
+}
+function isRuntimeModule(url, packageRoot) {
+  if (!url?.startsWith('file:')) return false;
+  const file = fileURLToPath(url);
+  const local = relative(packageRoot, file);
+  if (local === '' || local.startsWith('..') || isAbsolute(local) || /^(?:tests|scripts)[\\/]/.test(local)) return false;
+  for (let directory = dirname(file); relative(packageRoot, directory) !== '' && dirname(directory) !== directory; directory = dirname(directory)) if (existsSync(join(directory, 'package.json'))) return false;
+  return true;
+}
+
 if (process.env.DSH_CHECK_LOADER === '1') {
   const anchor = pathToFileURL(runtimeAnchor(process.env.DSH_CHECK_RESOURCES).path).href;
+  const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   registerHooks({
     resolve(specifier, context, nextResolve) {
-      return nextResolve(specifier, specifier.startsWith('@deepseek-ai/') || specifier === 'zod' ? { ...context, parentURL: anchor } : context);
+      if (!specifier.startsWith('@deepseek-ai/') && specifier !== 'zod') return nextResolve(specifier, context);
+      const name = specifier.split('/').slice(0, specifier.startsWith('@') ? 2 : 1).join('/');
+      const undeclared = isRuntimeModule(context.parentURL, packageRoot) && !declaredPeers(fileURLToPath(context.parentURL)).has(name);
+      return nextResolve(specifier, undeclared ? context : { ...context, parentURL: anchor });
     },
   });
 }

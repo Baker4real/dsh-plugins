@@ -82,6 +82,16 @@ test('a managed replacement plan remains a candidate and does not prove applicat
   assert.equal(result.page.status, 'not-verified');
 });
 
+test('the verified rc.2 and rc.3 runtimes use the same read-only plan as rc.1', async () => {
+  for (const hmrVersion of ['0.2.2-rc.2', '0.2.2-rc.3']) {
+    const f = fixture({ hmrVersion });
+    const result = await f.inspector.inspect(f.input);
+    assert.equal(result.management.status, 'unmanaged');
+    assert.equal(result.management.version, hmrVersion);
+    assert.equal(f.calls.length, 1);
+  }
+});
+
 test('unsupported runtime, unavailable module cache and failed planning remain unknown', async () => {
   const unsupported = fixture({ hmrVersion: '0.2.3' });
   assert.equal((await unsupported.inspector.inspect(unsupported.input)).management.reason, 'unsupported-hmr-version');

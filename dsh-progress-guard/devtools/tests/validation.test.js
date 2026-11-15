@@ -2,11 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ProjectValidationGate, deliveryOwner } from '../validation.js';
 
-test('a nested contributor attributes delivery to its live root, while a reviewer incurs no separate gate', () => {
-  const root = { id: 'root' }, child = { id: 'child' }, nested = { id: 'nested' };
-  const registry = { list: () => [root, child, nested], roots: () => [root], isOwnedBy: (id, parent) => (id === 'child' && parent === root) || (id === 'nested' && parent === child) };
+// Registries expose only list(): DSH 0.2.2-rc.2 has no roots() or isOwnedBy(), so calling either would throw here.
+const liveAgent = (id, header = {}) => ({ id, session: { id, header } });
+
+test('a nested subagent attributes delivery to its live top-level creator, while a reviewer incurs no separate gate', () => {
+  const root = liveAgent('root');
+  const child = liveAgent('child', { origin: 'subagent', parentSession: 'root' });
+  const nested = liveAgent('nested', { origin: 'subagent', parentSession: 'child' });
+  const registry = { list: () => [root, child, nested] };
   assert.equal(deliveryOwner(registry, nested), root);
   assert.equal(deliveryOwner(registry, root), root);
+});
+
+test('an ordinary fork owns its delivery, and a subagent whose creator is gone keeps it', () => {
+  const root = liveAgent('root');
+  const fork = liveAgent('fork', { parentSession: 'root' });
+  const orphan = liveAgent('orphan', { origin: 'subagent', parentSession: 'gone' });
+  const registry = { list: () => [root, fork, orphan] };
+  assert.equal(deliveryOwner(registry, fork), fork);
+  assert.equal(deliveryOwner(registry, orphan), orphan);
 });
 
 test('unchanged sources reuse a passed CLI result but still recheck the live Client', async () => {

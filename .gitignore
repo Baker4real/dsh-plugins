@@ -5,6 +5,9 @@
 **/.okf-cache/
 **/__pycache__/
 **/*.pyc
+# DSH's bundled pnpm (minimumReleaseAge 1440) writes minimumReleaseAgeExclude entries here when it installs Host
+# packages released less than a day earlier; they pin one release and are machine-local.
+**/pnpm-workspace.yaml
 
 # Runtime state and private evidence
 **/.dsh-plugin-smoke/

@@ -26,6 +26,9 @@ export async function apply(ctx, config = {}) {
   const pending = new Set();
   let stopping = false;
   const live = agent => agent !== undefined && !stopping && ctx.fiber.state === 2 && ctx.agents.get(agent.id) === agent;
+  // DSH 0.2.2-rc.2 removed AgentRegistry.roots(); its upgrade guide selects ordinary agents by session origin,
+  // which the subagent service already sets on rc.1 too.
+  const topLevel = agent => agent.session.header.origin !== 'subagent';
   const stateOf = agent => handle.stateOf(agent.session);
   function value(agent) {
     const wait = stateOf(agent).wait;
@@ -45,7 +48,7 @@ export async function apply(ctx, config = {}) {
     return agent;
   }
   function authorized(agent, goal) {
-    if (!ctx.agents.roots().includes(agent)) fail('Only a top-level agent may wait for human action.');
+    if (!topLevel(agent)) fail('Only a top-level agent may wait for human action.');
     const start = ctx.agents.turnBoundaryOf(agent.session).openTurnStartSeq;
     if (start === null) fail('A goal wait requires an open human turn or the exact current goal round.');
     const events = agent.session.snapshotEvents(start + 1);
@@ -86,7 +89,7 @@ export async function apply(ctx, config = {}) {
     ctx.agents.withoutInitiator(() => { observation.timer = setTimeout(poll, Math.min(pollMs, Math.max(1, wait.receipt.expiresAt - Date.now()))); });
   }
   async function release(agent, kind, waitId) {
-    if (!live(agent) || !ctx.agents.roots().includes(agent)) return;
+    if (!live(agent) || !topLevel(agent)) return;
     const wait = stateOf(agent).wait;
     const goal = ctx.goals.get(agent);
     if (wait?.status !== 'waiting' || wait.waitId !== waitId || !sameRef(wait.goalRef, goal) || goal.phase !== 'active' || goal.activation !== 'disarmed') return;
@@ -117,7 +120,7 @@ export async function apply(ctx, config = {}) {
     }
   }
   ctx.on('agent/inbox/inserted', ({ agent, message }) => {
-    if (!live(agent) || message.source.kind !== 'user' || !ctx.agents.roots().includes(agent)) return;
+    if (!live(agent) || message.source.kind !== 'user' || !topLevel(agent)) return;
     if (![...agent.inbox.nextStep, ...agent.inbox.nextTurn].some(m => m.id === message.id && m.source.kind === 'user')) return;
     const wait = stateOf(agent).wait;
     const claim = releasing.get(agent);

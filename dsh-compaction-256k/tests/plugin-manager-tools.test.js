@@ -44,6 +44,33 @@ test("list_plugins filters by moduleName", async () => {
   assert.equal(output.entries[0].entryId, "include:beta");
 });
 
+test("full bundle listings drop GUI-only fields named by either host release", async () => {
+  const ctx = {
+    sandboxPolicy: { resolve: () => ({ mode: "danger-full-access" }) },
+    pluginManager: {
+      listBundles: async () => [
+        { name: "rc1-row", updatable: true, listedByDefault: true, meta: {}, rows: [{ meta: {}, rowId: "a" }] },
+        { name: "rc2-row", update: "registry", listedByDefault: false, meta: {}, rows: [{ meta: {}, rowId: "b" }] },
+      ],
+    },
+    get: () => undefined,
+  };
+  const tool = createPluginManagerTool(ctx, async () => { throw new Error("listing must not run the local check"); });
+  const output = JSON.parse(await tool.execute({ action: "list_bundles" }, { signal: new AbortController().signal }));
+  assert.deepEqual(output.entries, [{ name: "rc1-row", rows: [{ rowId: "a" }] }, { name: "rc2-row", rows: [{ rowId: "b" }] }]);
+});
+
+test("an install that resolves to another package tells the agent it was rolled back", async () => {
+  const ctx = {
+    sandboxPolicy: { resolve: () => ({ mode: "danger-full-access" }) },
+    pluginManager: { installBundle: async () => ({ application: "failed", error: { code: "unexpected-package" } }) },
+    get: () => undefined,
+  };
+  const tool = createPluginManagerTool(ctx, async () => { throw new Error("unrelated packages must not run the local check"); });
+  const output = JSON.parse(await tool.execute({ action: "install_bundle", target: "unrelated-package@1.0.0" }, { signal: new AbortController().signal }));
+  assert.match(output.nextStep, /rolled back; report this to the user/);
+});
+
 test("list pagination rejects a limit above 100", async () => {
   const { definition, exec } = fixture();
   await assert.rejects(definition.execute({ action: "list_plugins", limit: 101 }, exec), /from 1 to 100/);

@@ -54,7 +54,7 @@ SourceNav 只访问安装包 source root 内的指定 npm 包；拒绝路径穿�
 
 ## 只读替换规划边界
 
-`Deployment.preflight` 在安装前读取真实目录、清单与入口文件，`patchId` 不作热更新依据。对已核验的 `@deepseek-ai/dsh-hmr@0.2.2-rc.1`，使用其 `loadedUrls`、`hasEsmCache` 和明确只读的 `planReplacement`；只规划安装包内已加载模块，不调用 `stopPlanned`、`reconcileProfile`、evict 或安装动作。版本/能力/缓存/规划证据不足时返回 `unknown`。结果不覆盖包迁移、后续激活成败或页面验收；每次实际变更仍读 `application`/`nextStep`。
+`Deployment.preflight` 在安装前读取真实目录、清单与入口文件，`patchId` 不作热更新依据。对已核验的 `@deepseek-ai/dsh-hmr@0.2.2-rc.1`、`0.2.2-rc.2` 与 `0.2.2-rc.3`（三版 `lib/index.js` 字节相同），使用其 `loadedUrls`、`hasEsmCache` 和明确只读的 `planReplacement`；只规划安装包内已加载模块，不调用 `stopPlanned`、`reconcileProfile`、evict 或安装动作。版本/能力/缓存/规划证据不足时返回 `unknown`。结果不覆盖包迁移、后续激活成败或页面验收；每次实际变更仍读 `application`/`nextStep`。
 
 ## Desktop DOM 与原生命中
 

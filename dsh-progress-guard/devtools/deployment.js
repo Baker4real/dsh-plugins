@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const HMR_VERSION = '0.2.2-rc.1';
+// rc.2 and rc.3 ship a byte-identical lib/index.js (SHA-256 D4990A34A9874F94…), so the cited lines hold for all three.
+const HMR_VERSIONS = new Set(['0.2.2-rc.1', '0.2.2-rc.2', '0.2.2-rc.3']);
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
 const packagePattern = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/u;
 const reasonSet = new Set(['unmanaged-plugin', 'host-module', 'module-comparison']);
@@ -101,7 +102,7 @@ export class DeploymentPreflight {
       if (manifest.name !== '@deepseek-ai/dsh-hmr') return unknown('hmr-identity-mismatch');
       version = manifest.version;
     } catch { return unknown('hmr-version-unavailable'); }
-    if (version !== HMR_VERSION) return { ...unknown('unsupported-hmr-version'), version };
+    if (!HMR_VERSIONS.has(version)) return { ...unknown('unsupported-hmr-version'), version };
     if (['hasEsmCache', 'loadedUrls', 'planReplacement'].some(name => typeof this.hmr[name] !== 'function')) return { ...unknown('hmr-capability-unavailable'), version };
     try {
       if (!this.hmr.hasEsmCache()) return { ...unknown('module-cache-unavailable'), version };
@@ -169,7 +170,7 @@ export class DeploymentPreflight {
       requirements: { host: restart ? 'restart-required' : management.status === 'managed' ? 'live-reload-candidate' : 'unknown', reason: management.reason, refresh: 'unknown', application: 'not-attempted' },
       page: { status: 'not-verified', required: 'Verify the current document and loaded revision after the actual application result.' },
       actions: [restart ? 'Arrange an authorized Host restart before changing the installation; inspect the actual application result afterwards.' : management.status === 'managed' ? 'Use the supported plugin manager for an authorized change and read application/nextStep; this plan is not a success guarantee.' : 'Resolve unknown runtime ownership before relying on a live reload.', ...(comparison === false ? ['Resolve the installed/source file mismatch before deployment.'] : comparison === null ? ['Resolve missing entry-file evidence before deployment.'] : []), 'Verify the actual Client document separately; file equality does not prove loaded code.'],
-      evidence: ['pluginManager.listPlugins: patchId is patch addressability, not HMR ownership.', `@deepseek-ai/dsh-hmr@${HMR_VERSION}/lib/index.js:809-813,1219-1261; version-gated read-only plan.`, 'Filesystem realpath/lstat and SHA-256; no registry, installation, refresh, or restart operations.'],
+      evidence: ['pluginManager.listPlugins: patchId is patch addressability, not HMR ownership.', `@deepseek-ai/dsh-hmr@${[...HMR_VERSIONS].join('|')}/lib/index.js:809-813,1219-1261; version-gated read-only plan.`, 'Filesystem realpath/lstat and SHA-256; no registry, installation, refresh, or restart operations.'],
       limitations: ['A non-atomic read-only snapshot; rerun after runtime or source changes.', 'Only loaded modules and selected entry files are covered; package relocation, activation errors and actual apply outcomes remain unverified.'],
     };
     if (Buffer.byteLength(JSON.stringify(result, null, 2), 'utf8') > maxBytes - 128) fail('deployment-output-exceeds-maxBytes');
