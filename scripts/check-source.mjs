@@ -8,6 +8,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ignored = new Set(['node_modules', '.git', '.scratch', '.cache', '.okf-cache', '.dsh-plugin-smoke', '.dsh-graph', 'run-evidence']);
 const source = [];
 const manifests = new Map();
+const lockfiles = [];
 function walk(directory) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (ignored.has(entry.name) || entry.isSymbolicLink()) continue;
@@ -15,6 +16,7 @@ function walk(directory) {
     if (entry.isDirectory()) walk(path);
     else if (['.js', '.mjs', '.cjs'].includes(extname(path))) source.push(path);
     else if (entry.name === 'package.json') manifests.set(directory, JSON.parse(readFileSync(path, 'utf8')));
+    else if (entry.name === 'pnpm-lock.yaml') lockfiles.push(path);
   }
 }
 walk(root);
@@ -29,8 +31,36 @@ for (const file of source) {
 // file lists the package in peerDependencies; any other bare import falls back to plain Node resolution. Probed on
 // 0.2.2-rc.1 on 2026-11-09 and hit again on 0.2.2-rc.3, where a bundle whose own checks passed did not load because one
 // Host import was undeclared. So every bare import reachable from a bundle's exports must be declared at or above it:
-// @deepseek-ai/* as a peer, so the bundle shares the Host copy; anything else as a peer or an installed dependency.
+// @deepseek-ai/* and the packages the Host ships with them as peers, so the bundle shares the Host copy; anything else as
+// a peer or an installed dependency.
 const builtins = new Set(builtinModules);
+// The Host also ships what its @deepseek-ai/* packages depend on (zod, for one). Listed under dependencies, such a package
+// loads as a private copy beside the Host's: a second module instance, and one more tree for a cold start to read
+// (2026-11-14: agent-reliability's private zod cost 81 Defender scans, about 1 s). The lockfiles name these packages in
+// the dependency maps of their @deepseek-ai/* entries.
+function hostShippedPackages(files) {
+  const shipped = new Set();
+  for (const file of files) {
+    let hostEntry = false;
+    let dependencyMap = false;
+    for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
+      const text = line.trim();
+      if (!text || text.startsWith('#')) continue;
+      const indent = line.length - line.trimStart().length;
+      if (indent <= 2) {
+        hostEntry = indent === 2 && /^'?@deepseek-ai\//.test(text);
+        dependencyMap = false;
+      } else if (indent === 4) {
+        dependencyMap = hostEntry && /^(?:optionalD|d)ependencies:$/.test(text);
+      } else if (indent === 6 && dependencyMap) {
+        const name = text.startsWith("'") ? text.slice(1, text.indexOf("'", 1)) : text.slice(0, text.indexOf(':'));
+        if (name && !name.startsWith('@deepseek-ai/')) shipped.add(name);
+      }
+    }
+  }
+  return shipped;
+}
+const hostShipped = hostShippedPackages(lockfiles);
 const importPatterns = [
   /(?:^|[^\w$.])(?:import|export)\b\s*(?:[^'"()]*?\bfrom\s*)?['"]([^'"\n]+)['"]/g,
   /\bimport\s*\(\s*['"]([^'"\n]+)['"]\s*\)/g,
@@ -97,8 +127,10 @@ for (const [directory, manifest] of manifests) {
       const name = packageName(specifier);
       if (builtins.has(name)) continue;
       imports.add(name);
-      if (name.startsWith('@deepseek-ai/') ? !peers.has(name) : !peers.has(name) && !dependencies.has(name)) {
-        problems.push(`${shown}: '${name}' is imported, but no package.json at or above it lists it in ${name.startsWith('@deepseek-ai/') ? 'peerDependencies' : 'peerDependencies or dependencies'}`);
+      const peerOnly = name.startsWith('@deepseek-ai/') || hostShipped.has(name);
+      if (peerOnly ? !peers.has(name) : !peers.has(name) && !dependencies.has(name)) {
+        const shipped = !name.startsWith('@deepseek-ai/') && hostShipped.has(name) ? ' (the Host ships it with its @deepseek-ai packages; under dependencies it loads a private copy)' : '';
+        problems.push(`${shown}: '${name}' is imported, but no package.json at or above it lists it in ${peerOnly ? 'peerDependencies' : 'peerDependencies or dependencies'}${shipped}`);
       }
     }
   }
@@ -108,4 +140,4 @@ if (problems.length) {
   console.error(`Undeclared bundle imports (DSH falls back to plain Node resolution for these):\n${[...new Set(problems)].join('\n')}`);
   process.exit(1);
 }
-console.log(JSON.stringify({ status: 'passed', syntaxFiles: source.length, bundles }));
+console.log(JSON.stringify({ status: 'passed', syntaxFiles: source.length, hostShipped: [...hostShipped].sort(), bundles }));
