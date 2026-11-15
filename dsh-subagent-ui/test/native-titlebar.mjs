@@ -101,11 +101,20 @@ async function runElectron() {
     const x = Math.round(rect.left + rect.width / 2)
     const points = { upper: { x, y: Math.round(rect.top + 4) }, center: { x, y: Math.round(rect.top + rect.height / 2) }, lower: { x, y: Math.round(rect.bottom - 4) } }
     const nativeHandle = win.getNativeWindowHandle().readBigUInt64LE(0).toString()
+    // Every call starts pwsh and compiles the Add-Type helper again. On a cold CI runner the first call ran past the
+    // old 5 s limit and was killed with empty stderr (2026-11-14); the passing rerun needed about 2 s per call.
+    const nativeHitTimeoutMs = 20000
     const nativeHit = async point => {
       const content = win.getContentBounds()
       const screenX = Math.round(content.x + point.x)
       const screenY = Math.round(content.y + point.y)
-      const { stdout } = await execFileAsync('pwsh.exe', ['-NoProfile', '-File', join(here, 'fixtures/native-titlebar/native-hit.ps1'), '-Handle', nativeHandle, '-X', String(screenX), '-Y', String(screenY)], { encoding: 'utf8', timeout: 5000 })
+      let stdout
+      try {
+        ({ stdout } = await execFileAsync('pwsh.exe', ['-NoProfile', '-File', join(here, 'fixtures/native-titlebar/native-hit.ps1'), '-Handle', nativeHandle, '-X', String(screenX), '-Y', String(screenY)], { encoding: 'utf8', timeout: nativeHitTimeoutMs }))
+      } catch (error) {
+        const reason = error.killed ? `killed by ${error.signal} after the ${nativeHitTimeoutMs} ms limit` : `exit ${error.code}`
+        throw new Error(`NATIVE_HIT_FAILED at ${screenX},${screenY}: ${reason}; stderr: ${String(error.stderr ?? '').trim().slice(-500) || '(empty)'}`)
+      }
       return JSON.parse(stdout.trim())
     }
     const measure = async (name, point, expected) => {
