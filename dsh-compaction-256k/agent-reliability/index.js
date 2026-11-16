@@ -6,8 +6,10 @@ import { createBoundedFetchTool, createProgressiveSkillTool, projectGenuiSkillVa
 import { createExaSearchTool, initialSearchHealth } from './search.js';
 import { completeSkillResult, createSkillReloadTool, projectLoadedSkill } from './skill-loading.js';
 import { guardAskUserQuestion } from './question-guard.js';
+import { explicitGitGlob, recoverExplicitGitGlob, projectGitGlob } from './glob-tools.js';
+import { projectGenuiValidation } from './genui-validation.js';
 
-export const inject = ['tools', 'agents', 'sessionProjections', 'cordisInspect'];
+export const inject = ['tools', 'agents', 'sessionProjections', 'cordisInspect', 'subprocess', 'workingDirectory'];
 const stateSchema = z.object({ calls: z.record(z.string(), z.string()), sources: z.record(z.string(), z.string()), turn: z.number().int(), repairRequested: z.boolean() });
 
 export async function apply(ctx) {
@@ -70,14 +72,42 @@ export async function apply(ctx) {
       }
       return () => { for (const dispose of disposers.reverse()) dispose(); installed.delete(agent.id); repairs.delete(agent.id); };
     }, 'agent-reliability: scoped tools');
-    installed.set(agent.id, { effect, wrapped });
+    const nativeGlob = agent.ctx.tools.get('glob', agent);
+    if (nativeGlob) wrapped.push('glob');
+    const nativeValidation = agent.ctx.tools.get('validate_dsh_ui', agent);
+    installed.set(agent.id, { effect, wrapped, nativeGlob, nativeValidation });
   }
   ctx.on('agent/created', ({ agent }) => installAgent(agent));
   for (const agent of ctx.agents.list()) installAgent(agent);
   ctx.effect(() => () => { for (const item of [...installed.values()]) item.effect(); installed.clear(); repairs.clear(); }, 'agent-reliability: agent cleanup');
 
+  ctx.on('tools/execute', async (exec, next) => {
+    const nativeGlob = installed.get(exec.agent?.id)?.nativeGlob;
+    if (exec.name !== 'glob' || !nativeGlob || !explicitGitGlob(exec.arguments)
+      || exec.agent.ctx.tools.get('glob', exec.agent, exec.toolSet) !== nativeGlob) return next();
+    // Start the budget before the original call and drain it before returning.
+    const previousSignal = exec.signal;
+    exec.signal = AbortSignal.any([previousSignal, AbortSignal.timeout(nativeGlob.timeoutMs ?? 30_000)]);
+    try {
+      const result = await next();
+      return await recoverExplicitGitGlob(ctx, exec, result, nativeGlob);
+    } finally {
+      exec.signal = previousSignal;
+    }
+  });
+
   ctx.on('tools/post-execute', async (exec, result, next) => {
     const decision = await next();
+    if (exec.name === 'validate_dsh_ui') {
+      const nativeValidation = installed.get(exec.agent?.id)?.nativeValidation;
+      if (exec.agent?.ctx.tools.get(exec.name, exec.agent, exec.toolSet) !== nativeValidation) return decision;
+      return projectGenuiValidation(exec, result, decision, nativeValidation);
+    }
+    if (exec.name === 'glob') {
+      const nativeGlob = installed.get(exec.agent?.id)?.nativeGlob;
+      if (!nativeGlob || exec.agent?.ctx.tools.get(exec.name, exec.agent, exec.toolSet) !== nativeGlob) return decision;
+      return projectGitGlob(exec, result, decision);
+    }
     if (exec.name !== 'skill') return decision;
     const nativeSkill = exec.agent?.ctx.tools.get('skill', exec.agent, exec.toolSet);
     const projected = projectLoadedSkill(exec, result, decision, nativeSkill);
@@ -121,8 +151,12 @@ export async function apply(ctx) {
       const agent = input.sessionId ? ctx.agents.get(input.sessionId) : undefined;
       const state = agent ? registry.stateOf(agent.session) : undefined;
       return {
-        version: '1.0.3', citationStreamGuard: true, questionSchemaGuard: true, activeAgents: installed.size,
+        version: '1.0.4', citationStreamGuard: true, questionSchemaGuard: true, globExplicitGit: true, genuiValidationGuard: true, activeAgents: installed.size,
         wrappers: input.sessionId ? installed.get(input.sessionId)?.wrapped ?? [] : [...new Set([...installed.values()].flatMap(item => item.wrapped))],
+        toolGuards: agent ? {
+          glob: Boolean(installed.get(agent.id)?.nativeGlob) && agent.ctx.tools.get('glob', agent) === installed.get(agent.id)?.nativeGlob,
+          validate_dsh_ui: Boolean(installed.get(agent.id)?.nativeValidation) && agent.ctx.tools.get('validate_dsh_ui', agent) === installed.get(agent.id)?.nativeValidation,
+        } : null,
         sourceCount: state ? Object.keys(state.sources).length : null,
         search: { ...health }, metrics: { ...metrics },
       };

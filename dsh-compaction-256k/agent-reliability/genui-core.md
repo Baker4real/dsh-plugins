@@ -26,7 +26,7 @@ UI 写在回答正文的 `dsh-ui` 围栏内，围栏正文是一份严格 JSON �
 
 发出前检查 JSON 括号配对、引号转义、无尾逗号，根对象最后一个字符为 `}`。每个组件节点必须有字符串 type；字段名照契约写。错误字段可能使组件被丢弃，结构错误可能使围栏退化为代码块。
 
-spec ≥3 个组件、包含 table、任一组件接近资源上限，或字段不确定时，先调用 `validate_dsh_ui`，spec 传实际准备发出的 JSON 文本。`next=fix_and_revalidate` 时按诊断修正并重验；`next=emit_fence` 时发已验证规格；`next=emit_repaired_fence` 时照抄 repaired_json。若返回 native_fence_json，发这个确切 JSON，保留原生投影。`warning=unknown_field` 修字段后重验；`warning=block_markdown` 按 replacement 改为结构节点并重验。≤2 个简单组件且未接近上限可跳过验证。
+spec ≥3 个组件、包含 table、任一组件接近资源上限，或字段不确定时，先调用 `validate_dsh_ui`，spec 传实际准备发出的 JSON 文本。`next=fix_and_revalidate` 时按诊断修正并重验；`next=emit_fence` 时发已验证规格；`next=emit_repaired_fence` 时照抄 repaired_json。若返回 native_fence_json，发这个确切 JSON，保留原生投影。`warning=policy_truncated` 表示原内容未完整保留，即使 `status=valid` 也要拆分或缩减组件并重验，确认所有条目仍在；此时 `repaired_json` 和 `native_fence_json` 仅保留为诊断证据，遵循 `next=fix_and_revalidate`。`warning=unknown_field` 修字段后重验；`warning=block_markdown` 按 replacement 改为结构节点并重验。≤2 个简单组件且未接近上限可跳过验证。
 
 整棵树 ≤200 节点、嵌套 ≤8 层；单个 table ≤50 行、≤12 列，list ≤50 项，file-tree 每层 ≤50 节点，tabs ≤12 页，accordion ≤24 项。超长内容拆成多个组件并验证，别依赖静默截断。一条回答通常 3-8 个组件，数量服从信息需要；hero 只用一个，scene3d 的 mesh 1-5 个，plot 指定合理 xMin/xMax。svg 文档最多 12000 字符，超限精简或拆分后重验。
 
