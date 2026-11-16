@@ -20,7 +20,7 @@ Node.js ESM、Cordis 插件、YAML composition、DSH compaction API、Node 内�
 - `source-inspect.js`：Host `Source.searchFile` Provider，受限检索 DSH 源码根与 `app.asar` 文件。
 - `plugin-manager-tools.js`：`plugin_manager` 的 `name` 过滤与 bundle 摘要。
 - `compact-inspect.js`：`cordis` 预设的只读 `cordis_inspect_compact`，裁剪 Service/Slots 的大段 schema 与类型展开；完整契约仍用原查询工具。
-- `package.json`：源码直接 import 的 `@deepseek-ai/*` 宿主包写进 `peerDependencies`，DSH 运行时据此改用宿主自带的那一份；同版本的 `devDependencies`、`node_modules/` 和 pnpm lockfile 只供本地测试。写进 `dependencies` 会让插件加载私有副本，引擎不再继承宿主的 `BasicCompactionEngine`（证据：`D:/agents/run-evidence/dsh-compaction-256k/20261109-peer-dependencies/`）。
+- `package.json`：源码直接 import 的宿主包（`@deepseek-ai/*`，以及随它们装进宿主的第三方包，如 zod）写进 `peerDependencies`，DSH 运行时据此改用宿主自带的那一份；同版本的 `devDependencies`、`node_modules/` 和 pnpm lockfile 只供本地测试。写进 `dependencies` 会让插件加载私有副本，引擎不再继承宿主的 `BasicCompactionEngine`（证据：`D:/agents/run-evidence/dsh-compaction-256k/20261109-peer-dependencies/`）；仓库根的 `scripts/check-source.mjs` 在 CI 里拦这种写法。
 - `context-meter/`：独立 Client/Host bundle，以 `compactionSettings` 投影和 `contextPressure` 在输入框 dock 显示压缩剩余百分比；需单独安装该目录。
 - `daily-update-guards/`：独立 Host bundle，包装每日更新 Schedule 与高风险 PowerShell 工具；需单独安装该目录，现役 Agent 与新 Agent 都要验收。
 - `agent-reliability/`：来源校验、Exa 搜索及网页/GenUI 读取扩展；独立安装，先跑子包检查。宿主验收和回滚见 `agent-reliability/README.md`。
