@@ -23,7 +23,11 @@ const GUARDED_ENTRY = 'D:\\Codex\\.codex\\scripts\\install-skill-guarded.cmd';
 async function canonicalPath(filePath, cwd) {
   const absolute = absolutePath(filePath, cwd);
   try { return await realpath(absolute); } catch { /* A new write target does not exist yet. */ }
-  try { return join(await realpath(dirname(absolute)), basename(absolute)); }
+  const windows = isWindowsAbsolute(absolute);
+  try {
+    const parent = await realpath(windows ? win32.dirname(absolute) : dirname(absolute));
+    return windows ? win32.join(parent, win32.basename(absolute)) : join(parent, basename(absolute));
+  }
   catch { return absolute; }
 }
 
