@@ -1,11 +1,27 @@
 import { realpath } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve, win32 } from 'node:path';
+
+function isWindowsAbsolute(path) {
+  return /^[A-Za-z]:[\\/]/.test(path) || path.startsWith('\\\\');
+}
+
+function isAnyAbsolute(path) {
+  return isAbsolute(path) || isWindowsAbsolute(path);
+}
+
+function absolutePath(filePath, cwd) {
+  if (isWindowsAbsolute(filePath)) return win32.normalize(filePath);
+  if (isAbsolute(filePath)) return filePath;
+  if (cwd && isWindowsAbsolute(cwd)) return win32.resolve(cwd, filePath);
+  return resolve(cwd, filePath);
+}
+
 
 const SKILLS_ROOT = 'D:\\agents\\skills-manager\\skills';
 const GUARDED_ENTRY = 'D:\\Codex\\.codex\\scripts\\install-skill-guarded.cmd';
 
 async function canonicalPath(filePath, cwd) {
-  const absolute = isAbsolute(filePath) ? filePath : resolve(cwd, filePath);
+  const absolute = absolutePath(filePath, cwd);
   try { return await realpath(absolute); } catch { /* A new write target does not exist yet. */ }
   try { return join(await realpath(dirname(absolute)), basename(absolute)); }
   catch { return absolute; }
@@ -34,7 +50,7 @@ export function apply(ctx) {
     if (toolName === 'grep' || toolName === 'glob') {
       const searchPath = args?.path ?? '.';
       const cwd = exec.agent ? ctx.workingDirectory.get(exec.agent.session) : undefined;
-      if (!isAbsolute(searchPath) && !cwd) return decision;
+      if (!isAnyAbsolute(searchPath) && !cwd) return decision;
       if (!isInsideAsar(await canonicalPath(searchPath, cwd))) return decision;
       return {
         kind: 'deny',
@@ -49,7 +65,7 @@ export function apply(ctx) {
     if (!filePath) return decision;
 
     const cwd = exec.agent ? ctx.workingDirectory.get(exec.agent.session) : undefined;
-    if (!isAbsolute(filePath) && !cwd) return decision;
+    if (!isAnyAbsolute(filePath) && !cwd) return decision;
 
     if (!isInsideSkillsRoot(await canonicalPath(filePath, cwd))) return decision;
 
