@@ -22,6 +22,7 @@ export async function apply(ctx, config = {}) {
   if (!Number.isSafeInteger(pollMs) || pollMs < 250 || pollMs > 60000 || !Number.isSafeInteger(maxSeconds) || maxSeconds < 1 || maxSeconds > 3600) throw new TypeError('Invalid bounded receipt configuration.');
   const handle = await ctx.sessionProjections.register(waitProjection);
   const observations = new Map();
+  const waiting = new Map();
   const releasing = new Map();
   const pending = new Set();
   let stopping = false;
@@ -94,6 +95,7 @@ export async function apply(ctx, config = {}) {
     const goal = ctx.goals.get(agent);
     if (wait?.status !== 'waiting' || wait.waitId !== waitId || !sameRef(wait.goalRef, goal) || goal.phase !== 'active' || goal.activation !== 'disarmed') return;
     // Consume the exact token before any await, including competing human edges.
+    if (waiting.get(agent) === waitId) waiting.delete(agent);
     stopObservation(agent);
     const claim = { waitId, kind };
     releasing.set(agent, claim);
@@ -152,6 +154,7 @@ export async function apply(ctx, config = {}) {
       const state = stateOf(agent);
       if (state.wait?.status === 'waiting' && sameRef(state.wait.goalRef, goal)) {
         if (args.wait_id !== undefined && args.wait_id.toLowerCase() !== state.wait.waitId.toLowerCase()) fail('An existing wait cannot be replaced by another nonce.', 'GOAL_WAIT_ALREADY_WAITING');
+        waiting.set(agent, state.wait.waitId);
         exec.concludeTurn();
         return value(agent);
       }
@@ -163,6 +166,7 @@ export async function apply(ctx, config = {}) {
       const now = Date.now();
       const receipt = args.receipt_path ? { path: receiptPath(args.receipt_path, roots), expiresAt: now + seconds * 1000, status: 'observing' } : null;
       const wait = WaitRecord.parse({ version: 1, sessionId: agent.id, waitId: args.wait_id ?? randomUUID(), goalRef: { id: goal.id, revision: goal.revision }, reason: args.reason.trim(), action: args.action.trim(), enteredAt: now, status: 'waiting', resolution: 'none', receipt });
+      waiting.set(agent, wait.waitId);
       ctx.goals.disarm(agent);
       record(agent, wait);
       await ctx.sessions.flush(agent.session);
@@ -178,8 +182,23 @@ export async function apply(ctx, config = {}) {
       return value(agent);
     },
   }));
-  ctx.on('goal/changed', ({ agent }) => { if (observations.has(agent) && stateOf(agent).wait?.status !== 'waiting') stopObservation(agent); });
-  ctx.on('agent/disposed', ({ agent }) => { stopObservation(agent); });
+  ctx.on('goal/changed', ({ agent }) => {
+    const wait = stateOf(agent).wait;
+    if (observations.has(agent) && wait?.status !== 'waiting') stopObservation(agent);
+    const waitId = waiting.get(agent);
+    if (!waitId || wait?.waitId !== waitId || wait.status !== 'invalidated' || wait.resolution !== 'goal-changed') return;
+    // A host/UI resume or edit invalidates the old wait. Do not let that same
+    // edge immediately arm automatic work or retain a round already queued.
+    // Removing this one active-wait marker still permits a later explicit
+    // resume of the new revision; the wait is not a permanent goal lock.
+    waiting.delete(agent);
+    const goal = ctx.goals.get(agent);
+    if (goal?.id === wait.goalRef.id && goal.phase === 'active' && goal.activation === 'armed') ctx.goals.disarm(agent);
+    for (const message of [...agent.inbox.nextTurn, ...agent.inbox.nextStep]) {
+      if (message.source.kind === 'goal' && message.source.goalId === wait.goalRef.id) agent.inbox.remove(message.id);
+    }
+  });
+  ctx.on('agent/disposed', ({ agent }) => { waiting.delete(agent); stopObservation(agent); });
   ctx.effect(() => () => {
     stopping = true;
     for (const agent of observations.keys()) stopObservation(agent);

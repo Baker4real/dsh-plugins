@@ -9,6 +9,33 @@ async function waiting(f) {
   return goal;
 }
 
+test('a resume that invalidates an active wait cannot immediately launch an automatic round', async () => {
+  const f = await fixture();
+  try {
+    const goal = await waiting(f);
+    f.idle();
+    await tick();
+    f.ctx.goals.resume(f.agent, goal);
+    assert.equal(f.ctx.goals.get(f.agent).activation, 'disarmed');
+    assert.equal((await f.call('get_goal_wait')).wait.resolution, 'goal-changed');
+    f.idle();
+    await tick();
+    await tick();
+    const value = await f.call('get_goal_wait');
+    assert.equal(value.goal.activation, 'disarmed');
+    assert.equal(value.goal.roundsStarted, 0);
+    assert.equal(f.agent.inbox.nextTurn.filter(m => m.source.kind === 'goal').length, 0);
+
+    // The suppression is only the invalidation edge, not a permanent lock on
+    // a later explicit resume of the new goal revision.
+    f.ctx.goals.resume(f.agent, value.goal);
+    f.idle();
+    await tick();
+    await tick();
+    assert.equal(f.agent.inbox.nextTurn.filter(m => m.source.kind === 'goal').length, 1);
+  } finally { await f.close(); }
+});
+
 test('unload while a human release awaits durability cannot arm afterward', async () => {
   const f = await fixture();
   try {

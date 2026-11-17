@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-goal-wait",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "description": "Persist human-action waits for goals and resume once at an authorized input edge.",

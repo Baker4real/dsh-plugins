@@ -26,7 +26,7 @@ Agent 先向用户说清剩余的一个人工动作，再读取当前目标，�
 
 首次登记及 flush 后也会处理真实 inbox 中尚未 claimed 的人工回复，覆盖“模型已提示动作、工具尚未执行时人工已完成”的顺序；当前原始任务消息已 claimed，不计入新回复。该扫描仅发生于本次新登记，不用于重载重新授权。
 
-任意目标 revision 改变都会使尚未消费的等待失效，后来的人工回复或旧回执不能重臂新 revision。恢复过程中卸载、Agent 更换或 revision 漂移也会阻止重臂。checkpoint 失败时保留停止状态，`resolution` 为 `resume-failed`；用户可在新的直接人工 Turn 中通过官方目标工具明确恢复。
+任意目标 revision 改变都会使尚未消费的等待失效，后来的人工回复或旧回执不能重臂新 revision。1.0.2 在这一失效边界同时撤销自动 continuation 的 armed 状态，并移除同一目标已经排队、尚未运行的 Goal 消息，避免外部 resume 的同一事件立刻启动自动轮次；这只处理本次等待的失效边界，之后对新 revision 的明确人工恢复仍可继续。恢复过程中卸载、Agent 更换或 revision 漂移也会阻止重臂。checkpoint 失败时保留停止状态，`resolution` 为 `resume-failed`；用户可在新的直接人工 Turn 中通过官方目标工具明确恢复。
 
 ## 持久状态
 
