@@ -1,17 +1,17 @@
 import { canonicalPageUrl, pageIdentity } from './page-bridge.js';
 
 const properties = {
-  action: { type: 'string', enum: ['inspect', 'reload', 'click'], description: 'inspect reads; reload waits for a new document; click activates the inspected element and verifies its declared result.' },
+  action: { type: 'string', enum: ['inspect', 'reload', 'click'], description: 'inspect reads. reload waits for a new document; reload requires pageId, documentId and graphRevision. click activates the inspected element and verifies its declared result; click requires pageId, documentId, graphRevision, selector, elementToken, verifySelector and expectedVisible.' },
   url: { type: 'string', description: 'Actual page origin/path from inspection, including dsh-app://app/ on Desktop. No credentials, query or fragment.' },
   sessionId: { type: 'string', description: 'Active main Session; defaults to the requesting Agent id.' },
   active: { type: 'boolean', description: 'For inspect only: atomically inspect the current active main Session without supplying sessionId.' },
-  pageId: { type: 'string', description: 'Exact identity from inspect; required for reload.' },
-  documentId: { type: 'string', description: 'Exact document identity from inspect; required for reload.' },
-  graphRevision: { type: 'string', description: 'Exact module graph identity from inspect; required for reload.' },
+  pageId: { type: 'string', description: 'Exact identity from inspect; required for reload and click.' },
+  documentId: { type: 'string', description: 'Exact document identity from inspect; required for reload and click.' },
+  graphRevision: { type: 'string', description: 'Exact module graph identity from inspect; required for reload and click.' },
   packageName: { type: 'string', description: 'Optional exact Client module package to compare against the Host advertisement.' },
-  selector: { type: 'string', description: 'Optional unique CSS selector, at most 256 characters.' },
-  expectedExpanded: { type: 'boolean', description: 'Expected aria-expanded on the inspected or verification selector.' },
-  elementToken: { type: 'string', description: 'Fresh inspect token for click; changes with element identity, layout or state.' },
+  selector: { type: 'string', description: 'Unique CSS selector, at most 256 characters; required for click and whenever expectedExpanded is set.' },
+  expectedExpanded: { type: 'boolean', description: 'Expected aria-expanded on the inspected or verification selector; requires selector.' },
+  elementToken: { type: 'string', description: 'Fresh inspect token required for click; changes with element identity, layout or state.' },
   verifySelector: { type: 'string', description: 'Required for click; unique selector whose resulting visible state is checked.' },
   expectedVisible: { type: 'boolean', description: 'Required for click; expected visibility of verifySelector after activation.' },
   expectNoRenderErrors: { type: 'boolean', description: 'For inspect: require the current session to have no reported RenderBoundary errors.' },
@@ -26,6 +26,13 @@ export function pageVerification(result, args, advertised) {
   const module = args.packageName === undefined ? 'not-requested' : !advertised || result.modules?.find(row => row.id === args.packageName)?.rev !== advertised.rev ? 'failed' : 'passed';
   const renderErrors = args.expectNoRenderErrors !== true ? 'not-requested' : Array.isArray(result.renderErrors) && result.renderErrors.length === 0 ? 'passed' : 'failed';
   return { pageReady: result.page?.ready === true, element, matchesAdvertisedModule: module, renderErrors, passed: result.page?.ready === true && element !== 'failed' && module !== 'failed' && renderErrors !== 'failed', sourceBuildVerified: false };
+}
+
+export function validatePageActionDeclaration(args) {
+  if (args?.expectedExpanded !== undefined && (typeof args.expectedExpanded !== 'boolean' || args.selector === undefined)) return 'SELECTOR_REQUIRED';
+  if (args?.action !== 'inspect' && ['pageId', 'documentId', 'graphRevision'].some(key => typeof args?.[key] !== 'string')) return 'TARGET_IDENTITY_REQUIRED';
+  if (args?.action === 'click' && (typeof args.selector !== 'string' || typeof args.elementToken !== 'string' || typeof args.verifySelector !== 'string' || typeof args.expectedVisible !== 'boolean')) return 'CLICK_TARGET_AND_VERIFICATION_REQUIRED';
+  return undefined;
 }
 
 export function createPageTool(ctx, bridge) {
@@ -44,10 +51,10 @@ export function createPageTool(ctx, bridge) {
       const url = canonicalPageUrl(args.url);
       const sessionId = args.active === true ? undefined : args.sessionId ?? exec.agent.id;
       if (sessionId !== undefined && (typeof sessionId !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/u.test(sessionId))) throw new Error('INVALID_SESSION_ID');
-      if (args.expectedExpanded !== undefined && (typeof args.expectedExpanded !== 'boolean' || args.selector === undefined)) throw new Error('SELECTOR_REQUIRED');
+      const declarationError = validatePageActionDeclaration(args);
+      if (declarationError === 'SELECTOR_REQUIRED') throw new Error(declarationError);
+      if (declarationError) return { status: 'rejected', code: declarationError };
       const target = { url, ...(sessionId === undefined ? {} : { sessionId }), ...(args.active === true ? { active: true } : {}), ...Object.fromEntries(['pageId', 'documentId', 'graphRevision', 'packageName', 'selector'].filter(key => args[key] !== undefined).map(key => [key, args[key]])) };
-      if (args.action !== 'inspect' && ['pageId', 'documentId', 'graphRevision'].some(key => typeof target[key] !== 'string')) return { status: 'rejected', code: 'TARGET_IDENTITY_REQUIRED' };
-      if (args.action === 'click' && (typeof args.selector !== 'string' || typeof args.elementToken !== 'string' || typeof args.verifySelector !== 'string' || typeof args.expectedVisible !== 'boolean')) return { status: 'rejected', code: 'CLICK_TARGET_AND_VERIFICATION_REQUIRED' };
       const query = input => ctx.cordisInspect.query('client', 'Page', 'inspect', { ...input, requireMatch: true }, exec.agent, exec.signal);
       let before;
       try { before = await query(target); } catch { return { status: 'unverified', code: 'MATCHING_PAGE_UNAVAILABLE' }; }

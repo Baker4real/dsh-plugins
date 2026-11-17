@@ -38,6 +38,25 @@ test('the incident shape is rejected by the real tool guard before dispatch', as
   } finally { await f.close(); }
 });
 
+test('diagnostics explain invalid fields and include a safe minimal freeform example', async () => {
+  const f = await fixture();
+  try {
+    const reason = f.denial({ name: 'ask_user_question', arguments: {
+      questions: [{
+        id: 'confirm', question: 'SENSITIVE_QUESTION', unexpected: true,
+        options: [{ label: 'SENSITIVE_LABEL', description: 'SENSITIVE_DESCRIPTION', extra: true }],
+      }],
+    } });
+    assert.match(reason, /questions\.0 \(unrecognized_keys: remove unsupported fields\)/);
+    assert.match(reason, /questions\.0\.options\.0 \(unrecognized_keys: remove unsupported fields\)/);
+    assert.match(reason, /Minimal valid freeform input:/);
+    assert.ok(reason.includes('{"questions":[{"id":"confirm","question":"<your question>"}]}'));
+    assert.ok(!reason.includes('SENSITIVE_QUESTION'));
+    assert.ok(!reason.includes('SENSITIVE_LABEL'));
+    assert.ok(!reason.includes('SENSITIVE_DESCRIPTION'));
+  } finally { await f.close(); }
+});
+
 test('blank identity, blank question and duplicate ids are rejected without echoing content', async () => {
   const f = await fixture();
   try {

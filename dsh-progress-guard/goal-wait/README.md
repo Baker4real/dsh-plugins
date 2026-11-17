@@ -14,7 +14,7 @@ Agent 先向用户说清剩余的一个人工动作，再读取当前目标，�
 
 ## 激活契约
 
-版本 1.0.1 使用 `index-v2.js` 公开入口转发到 `index.js?generation=2`，避免首次失败的旧 ESM link job 被再次复用。Config 采用已有 Zod 的 `~standard` schema：这是当前 Cordis `resolveConfig()` 支持的公开契约，三个默认值保持不变。曾发生的 Schemastery default import 激活失败已有真实 Host 诊断；公开文件中存在 default，具体 namespace/alias 原因未确定，本版本移除了不必要的 Schemastery 依赖，未升级 profile 核心包。
+版本 1.0.2 使用 `index-v2.js` 公开入口转发到 `index.js?generation=2`，避免首次失败的旧 ESM link job 被再次复用。Config 采用已有 Zod 的 `~standard` schema：这是当前 Cordis `resolveConfig()` 支持的公开契约，三个默认值保持不变。曾发生的 Schemastery default import 激活失败已有真实 Host 诊断；公开文件中存在 default，具体 namespace/alias 原因未确定，本版本移除了不必要的 Schemastery 依赖，未升级 profile 核心包。
 
 `check-cold-entry.mjs` 不注册 Node resolution hooks，使用实际 profile 的 Zod 公开 import 入口与宿主提供的官方 SDK 公开入口，在独立证据目录中加载同一 fresh source 闭包并运行真实 Cordis Config 验证。显式路径映射与版本写入报告；它不伪装 Host 的 SDK alias，安装后的真实激活仍是最后一道门禁。
 
@@ -73,7 +73,7 @@ Agent 先向用户说清剩余的一个人工动作，再读取当前目标，�
 
 按安装返回的 `application / nextStep` 判断生效，再检查 Config 激活、工具 schema 与中英文 metadata。本机 patch 只允许登记的专用目录；源码默认空 allowlist 与本机显式启用配置是两个不同层次。需要变更时通过受支持的插件配置方式设置 `receiptRoots`。禁用/移除本 bundle 不清除原目标或会话日志，也不恢复已 disarm 的目标。后续明确恢复仍使用官方目标服务。维护时保留源码目录供本地链接引用。
 
-本执行体没有安装插件、改变现有 profile、重启真实宿主或写入官方 ASAR。主 Agent 已验证 1.0.1 安装返回 `application: applied`、Host fiber active，并通过实际 `get_goal_wait` 读取当前目标，返回 `wait: null / observation: none`。
+本包运行时不修改官方 ASAR；本机 Chat 最终回复补丁由 `D:/Codex/tools/dsh-maint/local-patches.json` 独立登记，并通过统一检查覆盖源码和生产 bundle。
 
 当前只读 Config Inspector 对 Zod StandardSchema 的投影显示 `status: unsupported`；这不影响 Cordis 运行时配置校验与已激活的插件。本机 patch 中的专用 `receiptRoots` 仍已启用。此限制仅涉及 schema 展示，不扩展官方 Inspector 或添加兼容层。
 
@@ -87,7 +87,7 @@ Agent 先向用户说清剩余的一个人工动作，再读取当前目标，�
 
 需要保留证据时传 `--report` 的绝对 D 盘 JSON 文件；目录需已存在。可用 `--runtime` 指定现有 Electron exe，`--dsh-root` 指定对应安装的 DSH 根。检查仅以 Electron Node 模式加载官方依赖，不启动 GUI、替代服务或安装包。
 
-检查覆盖 distribution closure、patch/locale/icon、所有 JS 语法、当前工具 schema compiler、官方 AgentLoop + native tool pipeline、预先启动并冻结 nonce 的生产者原子成功回执、官方 Goal/Session/round driver、官方 JSONL 写入重开，以及人工/子代理权限、nonce 重放拒绝、单次恢复、revision 漂移、重载卸载、checkpoint 竞态、回执超时去重和输入边界。模型边界使用本地确定性 adapter，未向外部模型发送请求。测试写入自身 `D:/Codex/evidence/dsh-goal-wait-20261110/`，不使用现有 profile 数据。
+检查覆盖 distribution closure、patch/locale/icon、所有 JS 语法、当前工具 schema compiler、官方 AgentLoop + native tool pipeline、Chat 对 `wait_goal` 最终回复的折叠边界与 `data-chat-final-response` 语义标记、预先启动并冻结 nonce 的生产者原子成功回执、官方 Goal/Session/round driver、官方 JSONL 写入重开，以及人工/子代理权限、nonce 重放拒绝、单次恢复、revision 漂移、重载卸载、checkpoint 竞态、回执超时去重和输入边界。模型边界使用本地确定性 adapter，未向外部模型发送请求。测试写入自身 `D:/Codex/evidence/dsh-goal-wait-20261110/`，不使用现有 profile 数据。
 
 ### 显式跨包安装器联调
 

@@ -54,6 +54,28 @@ test('inspect can require an empty RenderBoundary error set for the current sess
   assert.equal(unrequested.verification.passed, true);
 });
 
+test('page tool declaration states and validates every action-specific requirement', async () => {
+  const tool = pageTool(async () => { throw new Error('query must not run'); });
+  const { action, pageId, documentId, graphRevision, selector, elementToken, expectedExpanded } = tool.parameters.properties;
+  assert.match(action.description, /reload requires pageId, documentId and graphRevision/u);
+  assert.match(action.description, /click requires pageId, documentId, graphRevision, selector, elementToken, verifySelector and expectedVisible/u);
+  for (const property of [pageId, documentId, graphRevision]) assert.match(property.description, /required for reload and click/u);
+  assert.match(selector.description, /required for click and whenever expectedExpanded is set/u);
+  assert.match(elementToken.description, /required for click/u);
+  assert.match(expectedExpanded.description, /requires selector/u);
+
+  const { validatePageActionDeclaration } = await import('../page-tool.js');
+  assert.equal(typeof validatePageActionDeclaration, 'function');
+  const identity = { pageId: page.pageId, documentId: page.documentId, graphRevision: page.graphRevision };
+  assert.equal(validatePageActionDeclaration({ action: 'inspect', url: page.url }), undefined);
+  assert.equal(validatePageActionDeclaration({ action: 'inspect', url: page.url, expectedExpanded: false }), 'SELECTOR_REQUIRED');
+  assert.equal(validatePageActionDeclaration({ action: 'inspect', url: page.url, selector: '.panel', expectedExpanded: false }), undefined);
+  assert.equal(validatePageActionDeclaration({ action: 'reload', url: page.url }), 'TARGET_IDENTITY_REQUIRED');
+  assert.equal(validatePageActionDeclaration({ action: 'reload', url: page.url, ...identity }), undefined);
+  assert.equal(validatePageActionDeclaration({ action: 'click', url: page.url, ...identity }), 'CLICK_TARGET_AND_VERIFICATION_REQUIRED');
+  assert.equal(validatePageActionDeclaration({ action: 'click', url: page.url, ...identity, selector: '.trigger', elementToken: 'element-a', verifySelector: '.panel', expectedVisible: false }), undefined);
+});
+
 test('reload needs the full identity and never dispatches after an unmatched page query', async () => {
   const tool = pageTool(async () => { throw new Error('no matching page'); });
   assert.equal((await tool.execute({ action: 'reload', url: page.url }, exec())).code, 'TARGET_IDENTITY_REQUIRED');

@@ -12,7 +12,7 @@
 - Git 文件发现：保留原生 `glob` definition 和默认排除。仅 pattern 含字面 `.git` 段，或 path 位于字面 `.git` 段下，且原查询成功为空时，才通过公开 `buildGlobCommand` / `runRipgrep` 补扫；只移除 `.git` 的两条排除，其他 VCS 排除继续生效。两次扫描共享原工具 timeout 和 caller abort，补扫结束后才恢复 signal；补扫使用 rc.3 默认 raw 输出上限 20,000,000 字节、stderr 64 KiB 和 3 秒 terminate grace，原生行数上限、排序、metadata 和 spill 继续由原工具承担。普通查询不补扫。自定义原工具的 raw/terminate 配置不会传入补扫，需另行核对这些非默认部署。
 - Git 清单范围：每次显式 `.git` 查询均给模型补充范围提示；空结果显示在工具正文，非空结果通过 `additionalContexts` 保留提示，避免干扰原生 spill。仓库可能使用 worktree 的 `.git` 文件；跨项目 GitHub 清单须逐候选运行 `git remote -v`，核对全部 fetch remote，不能由 config 搜索结果判断仓库不存在或只统计账号自有仓库。
 - GenUI 验证：保留原生 `validate_dsh_ui` definition，通过 `tools/post-execute` 将协议头中的 `warning=policy_truncated` 路由到 `next=fix_and_revalidate`，同时明确 `content_fidelity=not_preserved`。`status` 仍表示原生 schema 判定；全部诊断、修复字段、`repaired_json` 和 `native_fence_json` 逐字保留，后两者在要求重验时不构成交付许可。其它插件的 content/value/block 决定优先，additionalContexts 原样保留；失败、取消和被另一 definition 覆写的工具不投影。
-- 提问：`ask_user_question` 经官方 `tools.guard()` 在分发前执行严格 schema 校验。顶层、问题和选项都拒绝未知键；问题 ID/正文和选项 label 不可为空，ID 不可重复。合法的自由文本提问不受影响，诊断只包含字段路径与错误码，不回显问题正文。
+- 提问：`ask_user_question` 经官方 `tools.guard()` 在分发前执行严格 schema 校验。顶层、问题和选项都拒绝未知键；问题 ID/正文和选项 label 不可为空，ID 不可重复。合法的自由文本提问不受影响，诊断包含字段路径、错误码和不含用户文本的修复提示，并附最小自由文本输入示例。
 
 ## 技能加载的上下文边界
 

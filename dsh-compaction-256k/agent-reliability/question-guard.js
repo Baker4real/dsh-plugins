@@ -23,11 +23,21 @@ const inputSchema = z.object({
   });
 });
 
+function issueDetail(issue) {
+  switch (issue.code) {
+    case 'unrecognized_keys': return 'remove unsupported fields';
+    case 'invalid_type': return `expected ${issue.expected}`;
+    case 'too_small': return 'a non-empty value is required';
+    case 'custom': return issue.message === 'duplicate id' ? 'duplicate id' : 'invalid value';
+    default: return 'invalid value';
+  }
+}
+
 /** Synchronous ToolsService guard; diagnostic paths never echo user question text. */
 export function guardAskUserQuestion(exec) {
   if (exec.name !== 'ask_user_question') return undefined;
   const result = inputSchema.safeParse(exec.arguments);
   if (result.success) return undefined;
-  const issues = result.error.issues.slice(0, 12).map(issue => `${issue.path.join('.')} (${issue.code})`).join('; ');
-  return `Invalid ask_user_question input: ${issues}. Fix the schema before asking the user.`;
+  const issues = result.error.issues.slice(0, 12).map(issue => `${issue.path.join('.') || '<input>'} (${issue.code}: ${issueDetail(issue)})`).join('; ');
+  return `Invalid ask_user_question input: ${issues}. Fix the schema before asking the user. Minimal valid freeform input: {"questions":[{"id":"confirm","question":"<your question>"}]}.`;
 }

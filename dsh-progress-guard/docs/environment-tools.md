@@ -15,7 +15,7 @@ tags: [dsh, inspect, source, validation, retro]
 
 | 平台 / Provider.方法 | 输入与用途 |
 |---|---|
-| Host / `Runtime.status` | `packageName` 精确包名。分别返回 Host `enabled`、`fiberPhase`、Config schema 状态、`configSchemas[].packageDir` 和 Client graph revision。可用 `offset`、`limit` 分页。原始 `Config.listConfigs` 目录行没有 `packageDir`；`dsh_inspect` 对不超过 5 行的结果补上它，entry 默认省略 schema，要 schema 时传 `includeSchema: true`。 |
+| Host / `Runtime.status` | `packageName` 精确包名。分别返回 Host `enabled`、`fiberPhase`、Config schema 状态、`configSchemas[].packageDir` 和 Client graph revision；`pageTool.available` 表示当前 Agent 在重启或重载后能否解析到 `dsh_page`。可用 `offset`、`limit` 分页。原始 `Config.listConfigs` 目录行没有 `packageDir`；`dsh_inspect` 对不超过 5 行的结果补上它，entry 默认省略 schema，要 schema 时传 `includeSchema: true`。 |
 | Client / `Runtime.status` | `packageName`；可选 `slot`、`entryKey`、`sessionId`。不传 `slot` 时 `slot` 为 null，`registrations` 只含这个包自己的占用（registrant 或 id 前缀）。传了 `slot` 才返回该槽获胜者。`renderErrors` 另列当前会话的 RenderBoundary 上报，含 boundaryId、scope、session/tab、message、componentStack、observedAt；最多 20 条，恢复或卸载时清除。 |
 | Client / `Desktop.inspectElement` | `selector` 必须唯一且可见。返回真实 rect、上/中/下 CSS 点、DPR、`elementFromPoint` 命中归属、白名单计算样式和标题栏/Popover 状态；`paint.color`、`paint.backgroundColor` 为目标实际计算颜色，SVG 目标另带 `paint.fill`。不返回 DOM 正文。 |
 | Host / `Desktop.hitTest` | `handle`、`x`、`y`、`devicePixelRatio`。仅接受 Host 父进程（Desktop 主进程）拥有的 HWND；将 selector 点换算为物理客户区坐标，使用 `ClientToScreen` 与带 1 秒上限的 `WM_NCHITTEST`；不激活窗口或发送输入。 |
@@ -53,6 +53,8 @@ Inspect 合同缓存按 Agent 隔离，最多保留 30 秒，并随 Client graph
 先 `dsh_page inspect` 指定唯一 selector，取得 `pageId / documentId / graphRevision` 和 `element.token`。再用 `action: "click"`，传回这些身份、同一 selector、`elementToken`、`verifySelector` 与必填 `expectedVisible`；可用 `expectedExpanded` 检查验证元素的 aria-expanded。操作在匹配页面内调用元素 click，不发送原生按键、屏幕坐标或打开新页；因此不会把某个 renderer 的旧坐标交给另一个 HWND。
 
 令牌绑定实际元素对象、会话/文档/模块、位置、状态和命中归属。元素替换、布局或状态改变会拒绝旧令牌；执行前再次检查遮挡和禁用状态。可见性包含视口相交、透明度与可用时的祖先 CSS 可见性；验收正向可见还要求中心未被其它元素遮挡。ACK 只表示接受，不是成功；点击后的实际状态必须另验。
+
+已完成轮次的最终回复具有稳定的 `data-chat-final-response` 标记。用 `[data-chat-turn="<轮次>"][data-chat-final-response]` 定位该回复，再检查是否存在 `data-turn-process-hidden`；不要用多个 `:has()` 猜测分组尾部。视口外元素的 `visible: false` 不等于被整轮折叠，应结合标记与实际几何判断。
 
 执行许可有期限。ACK 之前取消可确认未点击；ACK 之后的取消、超时或断连可能已有在途点击，返回 `mayHaveExecuted: true`，不能自动重试，应先重新检查页面。卸载、过期许可与旧页面身份不会继续执行。
 
