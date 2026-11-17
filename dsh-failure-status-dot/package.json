@@ -1,0 +1,24 @@
+{
+  "name": "@local/dsh-failure-status-dot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Show failed unread session completions in red in the sidebar.",
+  "engines": { "dsh": "0.2.2-rc.3" },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": ["index.js", "policy.js", "client.js", "src/client.js", "scripts/*.mjs", "tests/*.test.js", "smoke", "cordis.patch.yml", "locale/*.json", "icon.svg", "README.md"],
+  "peerDependencies": { "zod": "^4.4.3" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/build.mjs --check && node --check index.js && node --check client.js && node --test tests/*.test.js"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": { "platform": "web", "immediately": true, "inject": ["@deepseek-ai/dsh-client-ui-workspace"] }
+  }
+}

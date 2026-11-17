@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { InspectionLens, signatureName } from '../inspect.js';
+import { InspectionLens, signatureName, slotNodes } from '../inspect.js';
 
 function fixture() {
   const calls = [];
@@ -40,6 +40,33 @@ test('unknown service is rejected before dispatching a slow Client exact-service
   assert.equal(output.error.code, 'UNKNOWN_SERVICE');
   assert.equal(f.calls.length, 1);
   await assert.rejects(f.lens.method({ service: '\u0001'.repeat(128), method: 'get', maxBytes: 800 }, { agent: f.agent }), /identifier/);
+});
+
+test('Slot discovery is flat, bounded and paginates the exact subtree without wide selected schemas', async () => {
+  const children = Array.from({ length: 30 }, (_value, index) => ({ type: 'slot', name: `root.child-${index}`, registrant: 'WC', children: [], occupants: [{ id: 'a' }] }));
+  const calls = [];
+  const lens = new InspectionLens({ query: async (...args) => { calls.push(args); return { trees: [{ type: 'slot', name: 'unrelated', children: [] }, { type: 'slot', name: 'root', children }], selected: { catalog: { props: 'WIDE_CONTRACT' } } }; } });
+  const input = { root: 'root', limit: 100, maxBytes: 800 };
+  const first = await lens.slots(input, { agent: {} });
+  assert.equal(first.nodes[0].name, 'root');
+  assert.equal(first.nodes[0].childrenCount, 30);
+  assert.ok(first.nextOffset > 0);
+  assert.equal(first.truncated, true);
+  assert.equal(first.trees, undefined);
+  assert.ok(!JSON.stringify(first).includes('WIDE_CONTRACT'));
+  assert.ok(Buffer.byteLength(JSON.stringify(first, null, 2)) <= 800);
+  const next = await lens.slots({ ...input, offset: first.nextOffset }, { agent: {} });
+  assert.equal(next.nodes[0].parent, 'root');
+  assert.deepEqual(calls[0].slice(0, 4), ['client', 'Slots', 'listSubTree', { root: 'root' }]);
+  const providers = lens.providers(Array.from({ length: 10 }, (_value, index) => ({ platform: 'host', id: `P${index}`, methods: [{ name: 'read' }, { name: 'readFull' }] })), { limit: 1 });
+  assert.equal(providers.truncated, true, 'a row limit must disclose omission too');
+  assert.equal(providers.nextOffset, 1);
+});
+
+test('a factory root cannot select a same-named Slot', () => {
+  const data = { trees: [{ type: 'slot', name: 'known', children: [] }] };
+  assert.deepEqual(slotNodes(data, 'factory:known'), []);
+  assert.equal(slotNodes({ trees: [{ type: 'factory', name: 'known', children: [] }] }, 'factory:known')[0].node.type, 'factory');
 });
 
 test('requested type closure includes only the chosen method dependencies and respects total byte budget', async () => {

@@ -1,6 +1,6 @@
 const TTL_MS = 30_000;
 const textBytes = value => Buffer.byteLength(JSON.stringify(value, null, 2), 'utf8');
-function budget(input) {
+export function budget(input) {
   const value = input.maxBytes ?? 6000;
   if (!Number.isInteger(value) || value < 800 || value > 16000) throw new Error('maxBytes must be an integer from 800 to 16000');
   return value;
@@ -17,18 +17,44 @@ export function signatureName(signature) {
 function clipped(value, max = 500) {
   return typeof value === 'string' && value.length > max ? `${value.slice(0, max)}…` : value;
 }
-function page(base, key, values, input) {
+export function page(base, key, values, input = {}) {
   const maxBytes = budget(input);
   const offset = input.offset ?? 0;
   const limit = input.limit ?? 20;
   if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('offset must be nonnegative and limit must be from 1 to 100');
-  const result = { ...base, [key]: [], total: values.length, nextOffset: null, truncated: false };
+  const result = { ...base, [key]: [], total: values.length, offset, nextOffset: null, truncated: false };
   for (const value of values.slice(offset, offset + limit)) {
     result[key].push(value);
-    if (textBytes(result) > maxBytes - 256) { result[key].pop(); result.truncated = true; break; }
+    result.nextOffset = offset + result[key].length < values.length ? offset + result[key].length : null;
+    result.truncated = result.nextOffset !== null;
+    if (textBytes(result) > maxBytes - 256) { result[key].pop(); break; }
   }
-  if (result[key].length === 0 && offset < values.length) return { error: { code: 'BUDGET_TOO_SMALL', message: 'Increase maxBytes for the selected item.' }, maxBytes };
+  if ((result[key].length === 0 && offset < values.length) || textBytes(result) > maxBytes - 256) return { error: { code: 'BUDGET_TOO_SMALL', message: 'Increase maxBytes or select a narrower root, provider, or method.' }, maxBytes };
   result.nextOffset = offset + result[key].length < values.length ? offset + result[key].length : null;
+  result.truncated = result.nextOffset !== null;
+  return result;
+}
+
+/** A flat pre-order directory; never echo catalogs, props, occupant payloads or nested trees. */
+export function slotNodes(data, root) {
+  const nodes = [];
+  const pending = [...(data.trees ?? [])].reverse().map(node => ({ node, parent: null }));
+  let selected;
+  while (pending.length) {
+    const item = pending.pop();
+    nodes.push(item);
+    if ((root === item.node.name && item.node.type === 'slot') || (item.node.type === 'factory' && root === `factory:${item.node.name}`)) selected = item;
+    for (const child of [...(item.node.children ?? [])].reverse()) pending.push({ node: child, parent: item.node.name });
+  }
+  if (root === undefined) return nodes;
+  if (!selected) return [];
+  const result = [];
+  const visit = [selected];
+  while (visit.length) {
+    const item = visit.pop();
+    result.push(item);
+    for (const child of [...(item.node.children ?? [])].reverse()) visit.push({ node: child, parent: item.node.name });
+  }
   return result;
 }
 
@@ -94,6 +120,16 @@ export class InspectionLens {
       while (textBytes(result) > maxBytes - 256 && result.omittedTypes.length) result.omittedTypes.pop();
     }
     return result;
+  }
+  async slots(input = {}, context) {
+    budget(input);
+    if (input.root !== undefined && (typeof input.root !== 'string' || !input.root || input.root.length > 256)) throw new Error('root must contain 1 to 256 characters');
+    if (!context.agent) throw new Error('An Agent-backed inspection request is required');
+    context.signal?.throwIfAborted();
+    const data = await this.query('client', 'Slots', 'listSubTree', input.root === undefined ? {} : { root: input.root }, context.agent, context.signal);
+    context.signal?.throwIfAborted();
+    const rows = slotNodes(data, input.root).map(({ node, parent }) => ({ type: node.type, name: node.name, parent, ...(node.kind === undefined ? {} : { kind: node.kind }), childrenCount: node.children?.length ?? 0, occupantsCount: node.occupants?.length ?? 0 }));
+    return page({ root: input.root ?? null, omitted: ['catalogs', 'occupants', 'nested trees'], sourceNavigation: 'SourceNav.slot' }, 'nodes', rows, input);
   }
   providers(manifests, input = {}) {
     if (input.platform !== undefined) platformOf(input);

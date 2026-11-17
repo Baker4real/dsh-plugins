@@ -2,16 +2,17 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, realpath } from 'node:fs/promises';
 import { join, relative, resolve, isAbsolute, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SourceNavigator } from './source-nav.js';
-import { InspectionLens } from './inspect.js?generation=4';
+import { SourceNavigator } from './source-nav.js?generation=2';
+import { InspectionLens } from './inspect.js?generation=5';
 import { PageBridge, registerPageRoutes } from './page-bridge.js';
 import { createPageTool } from './page-tool.js?generation=1';
 import { createInspectTool } from './inspect-tool.js?generation=7';
 import { DeploymentPreflight } from './deployment.js';
-import { sourceManifest, inspectManifest, runtimeManifest, desktopManifest, deploymentManifest } from './schemas.js?generation=2';
+import { sourceManifest, inspectManifest, runtimeManifest, desktopManifest, deploymentManifest } from './schemas.js?generation=3';
 import { NativeHitTester } from './desktop-native.js';
 import { ProjectValidationGate, projectFingerprint, sameProject, deliveryOwner } from './validation.js?generation=2';
 import { runCheckProcess } from './check-process.js';
+import { projectProviderDirectory } from './provider-directory.js';
 
 export const inject = ['cordisInspect', 'clientModules', 'pluginManager', 'workingDirectory', 'agents'];
 const PACKAGE = '@local/dsh-progress-guard';
@@ -63,14 +64,25 @@ export function apply(ctx) {
       return { status: 'passed', registrant: current.registrant, revision: loaded.rev };
     },
   });
-  ctx.effect(() => ctx.cordisInspect.register({ manifest: sourceManifest, async query(method, input) {
+  ctx.on('tools/post-execute', async (exec, result, next) => projectProviderDirectory(exec, result, await next(), lens));
+  ctx.effect(() => ctx.cordisInspect.register({ manifest: sourceManifest, async query(method, input, { agent, signal }) {
+    if (method === 'slot') return await navigator.slot(input, {
+      packageNames: ctx.clientModules.graph().entries.map(row => row.id),
+      signal,
+      async locatePackage(name) {
+        const directory = await query('host', 'Config', 'listConfigs', { name, limit: 1 }, agent, signal);
+        if (!directory.entries?.[0]) return undefined;
+        const entry = await query('host', 'Config', 'listConfigs', { entry: directory.entries[0].id }, agent, signal);
+        return entry.packageDir;
+      },
+    });
     if (!['resolve', 'files', 'search'].includes(method)) throw new Error('Unknown SourceNav method');
     return await navigator[method](input);
   } }), 'devtools: SourceNav');
   ctx.effect(() => ctx.cordisInspect.register({ manifest: inspectManifest, async query(method, input = {}, context) {
     if (method === 'providers') return lens.providers(ctx.cordisInspect.list(), input);
     if (method === 'provider') return lens.provider(ctx.cordisInspect.list(), input);
-    if (method === 'services' || method === 'method') return await lens[method](input, context);
+    if (['services', 'method', 'slots'].includes(method)) return await lens[method](input, context);
     throw new Error('Unknown Inspect method');
   } }), 'devtools: Inspect');
   ctx.effect(() => ctx.cordisInspect.register({ manifest: deploymentManifest, async query(method, input = {}, { agent, signal }) {

@@ -1,5 +1,6 @@
 import { readFile, realpath, stat, readdir } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { page, budget } from './inspect.js';
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const packagePattern = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/u;
@@ -101,6 +102,50 @@ export class SourceNavigator {
     };
     await walk(value);
     return boundedRows({ packageName, version: manifest.version, directory, entry, exported: value !== undefined }, 'targets', targets, maxBytes);
+  }
+  async slot(input, { packageNames = [], locatePackage, signal } = {}) {
+    budget(input);
+    if (typeof input.root !== 'string' || !input.root || input.root.length > 256) throw new Error('root must contain 1 to 256 characters');
+    if (input.packageName !== undefined && !packagePattern.test(input.packageName)) throw new Error('Expected an exact npm package name');
+    const names = [...new Set(input.packageName === undefined ? packageNames.filter(name => packagePattern.test(name)) : [input.packageName])].sort();
+    if (names.length > 128) return { error: { code: 'QUERY_TOO_WIDE', message: 'Select packageName to inspect at most 128 verified package identities.' } };
+    const candidates = [];
+    let unavailablePackages = 0;
+    const escaped = input.root.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+    const declaration = new RegExp("(['\"`])" + escaped + "\\1\\s*:\\s*\\{\\s*kind\\s*:\\s*(['\"`])(?:single|list|keyed|chain|hoc)\\2", 'u');
+    for (const name of names) {
+      signal?.throwIfAborted();
+      let directory;
+      try {
+        try { ({ directory } = await this.package(name)); }
+        catch {
+          const installed = await locatePackage?.(name);
+          if (typeof installed !== 'string' || !isAbsolute(installed)) { unavailablePackages++; continue; }
+          directory = await realpath(installed);
+          const manifest = JSON.parse(await this.text(await this.target(directory, 'package.json')));
+          if (manifest.name !== name) { unavailablePackages++; continue; }
+        }
+        // These are existing source entry files, never inferred declarations or generated component labels.
+        for (const entry of ['src/client/index.ts', 'src/client/index.js', 'src/client.ts', 'src/client.js']) {
+          let sourceFile;
+          try { sourceFile = await this.target(directory, entry); }
+          catch (error) { if (['ENOENT', 'ENOTDIR'].includes(error.code)) continue; throw error; }
+          const text = await this.text(sourceFile);
+          const match = declaration.exec(text);
+          if (match === null) continue;
+          candidates.push({ packageName: name, packageDirectory: directory, sourceFile, line: text.slice(0, match.index).split('\n').length, evidence: 'literal child-slot declaration with kind' });
+        }
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        if (!['ENOENT', 'ENOTDIR'].includes(error.code) && !/identity|match|outside|UTF-8|source file/u.test(error.message)) throw error;
+        unavailablePackages++;
+      }
+    }
+    const uniqueNames = [...new Set(candidates.map(row => row.packageName))];
+    const ownership = uniqueNames.length === 1
+      ? { status: 'source-verified', packageName: uniqueNames[0] }
+      : { status: uniqueNames.length === 0 ? 'unknown' : 'ambiguous' };
+    return page({ root: input.root, ownership, basis: 'Installed source declaration evidence; not a claim about the live runtime winner.', scannedPackages: names.length, unavailablePackages }, 'candidates', candidates, input);
   }
   async files({ packageName, directory: requested = '.', offset = 0, limit = 25, maxBytes = 6000 }) {
     integer(offset, 0, 0, 100000, 'offset');

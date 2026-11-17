@@ -7,7 +7,7 @@ tags: [dsh, inspect, source, validation, retro]
 
 # 环境诊断与自动校验
 
-本机通过独立本地 bundle `@local/dsh-devtools` 提供诊断和交付检查，源码在 [devtools](../devtools/package.json)。这些 Provider 不改模型网关，也不把用户会话正文或未知异常原文作为诊断结果返回。项目不在 Git 仓库中，因此没有初始化 Git，也没有安装无效的提交 hook；自动执行由现有 Cordis 工具和 Turn 生命周期承载。加载排查遗留的 Host 依赖解析补丁及未确认的回滚见 [实施验证](verification.md)。
+本机通过独立本地 bundle `@local/dsh-devtools` 提供诊断和交付检查，源码在 [devtools](../devtools/package.json)。这些 Provider 不改模型网关，也不把用户会话正文或未知异常原文作为诊断结果返回。源码属于上级 dsh-plugins Git 仓库；本地自动执行由现有 Cordis 工具和 Turn 生命周期承载，仓库 CI 另行运行源码检查。加载排查遗留的 Host 依赖解析补丁及未确认的回滚见 [实施验证](verification.md)。
 
 ## 调用入口
 
@@ -26,13 +26,17 @@ tags: [dsh, inspect, source, validation, retro]
 | Client / `Page.inspect` | 必须 `url`；默认也要求 `sessionId`。`active: true` 在同一次同步快照中读取当前主会话，不能再传 sessionId，返回完整身份与当前会话的 renderErrors；无活动主会话时为 not-ready。其他可选 `pageId`、`documentId`、`graphRevision`、`packageName`、`selector`。对不上时只返回该页 origin 和 pathname，不返回 pageId 或模块代次。 |
 | Host / `Inspect.services` | `platform`，可选 `offset`、`limit`、`refresh`、`maxBytes`。返回当前 Agent 可见的 Service 和方法名称。 |
 | Host / `Inspect.method` | `platform`、`service`、`method`；默认不带类型，`includeTypes: true` 时仅带选定方法可达的声明。 |
+| Host / `Inspect.slots` | 可选精确 `root`、`offset`、`limit`、`maxBytes`。只返回平铺槽位名称、父子关系与数量；不返回整棵树或注册契约。 |
+| Host / `SourceNav.slot` | 精确 `root`，可选 `packageName`。核对当前 Client module 对应的安装包身份，查找真实源码中的子槽声明，返回实际目录、文件和行号。归属区分 source-verified、unknown 与 ambiguous，不从 `WC` 等组件标签推断运行时获胜者。 |
 | Host / `SourceNav.resolve` | `packageName`、可选 `entry`，如 `.` 或 `./client`。返回 exports 的条件目标和真实存在性，不猜测类型文件位置。 |
 | Host / `SourceNav.files` | `packageName`、相对 `directory`、`offset`、`limit`。分页列出实际目录。 |
 | Host / `SourceNav.search` | `packageName`、相对 `file`、字面 `needle`；可选 `contextChars`、`maxMatches`、`offset`。按匹配位置截取片段，支持压缩单行代码的深处命中；继续读取使用 `nextOffset`。 |
 
+默认 `cordis_inspect_list` 也投影为有界 Provider 目录：保留方法名称，完整 schema 通过 `Inspect.provider` 按需读取，续页使用 `dsh_inspect` 的 `offset`。`cordis_inspect_compact` 同样按字节预算分页，Slot 结果为平铺节点，精确 `input.root` 过滤无关子树。
+
 Inspect 合同缓存按 Agent 隔离，最多保留 30 秒，并随 Client graph 或 Provider 目录代际变化而失效；`refresh: true` 可立即重新读取。未知 Service 在目录预检中返回固定错误，不发起无意义的 Client 精确查询。`maxBytes` 默认 6000，范围 800–16000，以格式化 JSON 的 UTF-8 字节计算，并保留传输包装余量。省略和续页均有明确标记；不足以容纳一个完整方法时返回预算错误，不静默截断签名。
 
-SourceNav 只访问安装包 source root 内的指定 npm 包；拒绝路径穿越和符号链接逃逸，文本文件最多 2 MiB。搜索使用字面匹配，不执行外部正则。结果的 `offset`、`column` 是 UTF-16 字符位置，`line` 从 1 开始。
+`SourceNav.resolve/files/search` 只访问安装包 source root 内的指定 npm 包；`SourceNav.slot` 另可读取 Config 确认的 profile 安装包目录，并校验真实 manifest 名称。均拒绝所选包内的路径穿越和符号链接逃逸，文本文件最多 2 MiB。搜索使用字面匹配，不执行外部正则。结果的 `offset`、`column` 是 UTF-16 字符位置，`line` 从 1 开始。
 
 ## 绑定页面与刷新
 

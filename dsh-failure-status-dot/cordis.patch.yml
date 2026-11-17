@@ -1,0 +1,3 @@
+- insert:
+    - id: failure-status-dot
+      name: '@local/dsh-failure-status-dot'

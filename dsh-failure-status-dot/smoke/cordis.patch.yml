@@ -1,0 +1,3 @@
+- insert:
+    - id: failure-dot-smoke
+      name: '@local/dsh-failure-dot-smoke'

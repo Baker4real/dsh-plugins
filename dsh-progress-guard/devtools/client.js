@@ -320,7 +320,7 @@ window.__ModuleLoader__.load({
           manifest: {
             id: 'Desktop',
             description: 'Read-only selector geometry and computed hit-test style; never returns DOM text or performs input.',
-            methods: [{ name: 'inspectElement', description: 'Read one unique visible element and its upper, center and lower CSS-pixel points.', inputSchema: { type: 'object', properties: { selector: { type: 'string', description: 'Unique CSS selector, at most 256 characters.' } }, required: ['selector'], additionalProperties: false }, outputSchema: { description: 'Bounded geometry, DPR and whitelisted computed styles; no text content.' } }],
+            methods: [{ name: 'inspectElement', description: 'Read one unique visible element and its upper, center and lower CSS-pixel points.', inputSchema: { type: 'object', properties: { selector: { type: 'string', description: 'Unique CSS selector, at most 256 characters.' } }, required: ['selector'], additionalProperties: false }, outputSchema: { description: 'Bounded geometry, DPR and paint:{color,backgroundColor} from getComputedStyle(target); SVG targets also include computed fill. No text content or input.' } }],
           },
           query(method, input = {}) {
             if (method !== 'inspectElement') throw new Error('Unknown Desktop method');
@@ -348,6 +348,7 @@ window.__ModuleLoader__.load({
               viewport: { width: window.innerWidth, height: window.innerHeight },
               appRegion: style.webkitAppRegion ?? style.getPropertyValue?.('-webkit-app-region') ?? null,
               display: style.display, visibility: style.visibility, pointerEvents: style.pointerEvents,
+              paint: { color: style.color, backgroundColor: style.backgroundColor, ...(element.namespaceURI === 'http://www.w3.org/2000/svg' ? { fill: style.fill } : {}) },
               windowsTitlebar: document.documentElement.hasAttribute('data-windows-titlebar'),
               popoverOpen: popover === null ? false : popover.matches(':popover-open'),
             };

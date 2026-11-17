@@ -24,6 +24,12 @@ jobs:
       - name: Test magpie workbench with local fake services
         working-directory: dsh-gpt-image-playground-magpie
         run: node --test test/*.test.mjs
+      - name: Verify failure indicator generated client
+        working-directory: dsh-failure-status-dot
+        run: node scripts/build.mjs --check
+      - name: Test failure indicator behavior and build checks
+        working-directory: dsh-failure-status-dot
+        run: node --test tests/*.test.js
 
   subagent-checks:
     runs-on: ubuntu-latest

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Failed session indicator",
+    "description": "Colors the sidebar completion dot red when the latest turn failed and its result is unread. Successful completions stay green. Opening the session clears the reminder as usual. No settings required."
+  }
+}

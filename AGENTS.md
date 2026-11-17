@@ -7,6 +7,7 @@
 - `dsh-compaction-256k/`：压缩引擎、Inspect、余量 UI、每日更新守卫、来源与读取保障。
 - `dsh-progress-guard/`：进度防复读，子目录 `devtools/` 与 `goal-wait/` 是独立 bundle。
 - `dsh-gpt-image-playground-magpie/`：生图工作台的 magpie 接入。
+- `dsh-failure-status-dot/`：失败完成红点与真实会话验收夹具，先读其 AGENTS.md。
 - `dsh-subagent-ui/`：子代理管理工作台，保留上游 MIT 许可证与本地改动。
 - `dsh-skills-root-guard/`：拦截对现役 skills 根的直接 write/edit，并把 app.asar 的原生 grep/glob 引导到 Host 源码读取器。
 

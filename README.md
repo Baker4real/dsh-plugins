@@ -16,6 +16,7 @@ intent: 汇集本地维护的 DSH 插件源码，说明各目录、检查与安�
 | `dsh-gpt-image-playground-magpie/` | 生图工作台的本地 magpie 网关接入 | [说明](dsh-gpt-image-playground-magpie/README.md) |
 | `dsh-subagent-ui/` | 子代理管理浮窗与默认收起、本地界面和验收改进 | [中文说明](dsh-subagent-ui/README.zh.md) |
 | `dsh-skills-root-guard/` | 拦截 skills 根直接写入，并把 ASAR 原生搜索引导到 Host 源码读取器 | [说明](dsh-skills-root-guard/README.md) |
+| `dsh-failure-status-dot/` | 失败完成红点、生成产物一致性检查与真实会话验收夹具 | [说明](dsh-failure-status-dot/README.md) |
 
 `patches/` 保存经干净安装验证的精确版本 npm 本地补丁；迁移与恢复流程见 [补丁目录说明](patches/README.md)。
 
@@ -24,6 +25,10 @@ intent: 汇集本地维护的 DSH 插件源码，说明各目录、检查与安�
 ## 安装
 
 使用 Harness 的 `plugin_manager` 安装各包目录。部分目录下的子 bundle 需要独立安装；所需宿主版本和实际检查命令见对应 README。`@local/*` 包名和 `private: true` 保留其本地安装语义，不表示 GitHub 仓库是私有的，也不发布 npm 包。
+
+## 宿主升级检查
+
+在运行中的 DSH Shell 使用 `scripts/Invoke-DshSkillPointerCheck.ps1 -SkillFile <宿主 override 的 SKILL.md>` 检查实际安装的文档和模板入口。该检查使用安装自带的 Electron 读取 ASAR，从现行 dsh-doc 的表提取必需入口，断链或版本不一致会以非零退出。`dsh-progress-guard/devtools/scripts/check.mjs` 在发现现役宿主 override 时也执行同一检查。报告与临时测试数据放在仓库外。
 
 ## 开发
 
