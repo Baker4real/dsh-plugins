@@ -18,6 +18,9 @@ jobs:
           node-version: 24
       - name: Check all JavaScript syntax and package manifests
         run: node scripts/check-source.mjs
+      - name: Test skills root and ASAR tool guards
+        working-directory: dsh-skills-root-guard
+        run: node --test tests/*.test.js
       - name: Test magpie workbench with local fake services
         working-directory: dsh-gpt-image-playground-magpie
         run: node --test test/*.test.mjs

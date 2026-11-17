@@ -1,4 +1,4 @@
 {
   "title": "Skills 根写入守卫",
-  "description": "拦截对现役 skills 根的直接写入。"
+  "description": "拦截 skills 根直接写入，并引导 ASAR 搜索使用 Host 源码读取器。"
 }

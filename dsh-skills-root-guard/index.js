@@ -17,6 +17,10 @@ function isInsideSkillsRoot(path) {
     || normalized.toLowerCase() === SKILLS_ROOT.toLowerCase();
 }
 
+function isInsideAsar(path) {
+  return /\/app\.asar(?:\/|$)/i.test(path.replace(/\\/g, '/'));
+}
+
 export const inject = ['workingDirectory'];
 
 export function apply(ctx) {
@@ -25,9 +29,22 @@ export function apply(ctx) {
     if (decision.kind !== 'allow') return decision;
 
     const toolName = exec.name;
+    const args = exec.arguments;
+
+    if (toolName === 'grep' || toolName === 'glob') {
+      const searchPath = args?.path ?? '.';
+      const cwd = exec.agent ? ctx.workingDirectory.get(exec.agent.session) : undefined;
+      if (!isAbsolute(searchPath) && !cwd) return decision;
+      if (!isInsideAsar(await canonicalPath(searchPath, cwd))) return decision;
+      return {
+        kind: 'deny',
+        reason: 'app.asar 是打包文件，原生 grep/glob 不能检索其中的路径。' +
+          '请改用 Host SourceNav 定位包内文件，或用 Source.searchFile 检索单个已知文件。',
+      };
+    }
+
     if (toolName !== 'write' && toolName !== 'edit') return decision;
 
-    const args = exec.arguments;
     const filePath = args?.file_path;
     if (!filePath) return decision;
 

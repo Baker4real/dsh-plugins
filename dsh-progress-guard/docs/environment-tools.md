@@ -16,14 +16,14 @@ tags: [dsh, inspect, source, validation, retro]
 | 平台 / Provider.方法 | 输入与用途 |
 |---|---|
 | Host / `Runtime.status` | `packageName` 精确包名。分别返回 Host `enabled`、`fiberPhase`、Config schema 状态、`configSchemas[].packageDir` 和 Client graph revision。可用 `offset`、`limit` 分页。原始 `Config.listConfigs` 目录行没有 `packageDir`；`dsh_inspect` 对不超过 5 行的结果补上它，entry 默认省略 schema，要 schema 时传 `includeSchema: true`。 |
-| Client / `Runtime.status` | `packageName`；可选 `slot`、`entryKey`、`sessionId`。不传 `slot` 时 `slot` 为 null，`registrations` 只含这个包自己的占用（registrant 或 id 前缀）。传了 `slot` 才返回该槽获胜者。不传 `slot` 不会改看别的默认槽。 |
-| Client / `Desktop.inspectElement` | `selector` 必须唯一且可见。返回真实 rect、上/中/下 CSS 点、DPR、`elementFromPoint` 命中归属、白名单计算样式和标题栏/Popover 状态；不返回 DOM 正文。 |
+| Client / `Runtime.status` | `packageName`；可选 `slot`、`entryKey`、`sessionId`。不传 `slot` 时 `slot` 为 null，`registrations` 只含这个包自己的占用（registrant 或 id 前缀）。传了 `slot` 才返回该槽获胜者。`renderErrors` 另列当前会话的 RenderBoundary 上报，含 boundaryId、scope、session/tab、message、componentStack、observedAt；最多 20 条，恢复或卸载时清除。 |
+| Client / `Desktop.inspectElement` | `selector` 必须唯一且可见。返回真实 rect、上/中/下 CSS 点、DPR、`elementFromPoint` 命中归属、白名单计算样式和标题栏/Popover 状态；`paint.color`、`paint.backgroundColor` 为目标实际计算颜色，SVG 目标另带 `paint.fill`。不返回 DOM 正文。 |
 | Host / `Desktop.hitTest` | `handle`、`x`、`y`、`devicePixelRatio`。仅接受 Host 父进程（Desktop 主进程）拥有的 HWND；将 selector 点换算为物理客户区坐标，使用 `ClientToScreen` 与带 1 秒上限的 `WM_NCHITTEST`；不激活窗口或发送输入。 |
 | Host / `Runtime.checks` | 空对象；只读最近一次自动校验的阶段、源文件指纹和报告路径，本查询不触发校验。 |
 | Host / `Inspect.providers` | `offset`、`limit`、可选 `platform`。仅返回 Provider 用途和方法名称。 |
 | Host / `Inspect.provider` | `platform`、`provider`、`method`、可选 `maxBytes`。返回一个已发现方法的完整输入/输出 schema。 |
 | Host / `Deployment.preflight` | `packageName`、`sourceDirectory`，可选 `installedDirectory`、`files`、`maxBytes`。比较文件身份/入口 hash，并读取 HMR 的替换规划；不执行安装或替换。 |
-| Client / `Page.inspect` | 必须 `url`、`sessionId`；可选 `pageId`、`documentId`、`graphRevision`、`packageName`、`selector`。对不上时只返回该页 origin 和 pathname（`status: mismatch`），不返回 pageId 或模块代次。匹配时才返回主会话、模块代次和元素状态，不返回 DOM 正文。 |
+| Client / `Page.inspect` | 必须 `url`；默认也要求 `sessionId`。`active: true` 在同一次同步快照中读取当前主会话，不能再传 sessionId，返回完整身份与当前会话的 renderErrors；无活动主会话时为 not-ready。其他可选 `pageId`、`documentId`、`graphRevision`、`packageName`、`selector`。对不上时只返回该页 origin 和 pathname，不返回 pageId 或模块代次。 |
 | Host / `Inspect.services` | `platform`，可选 `offset`、`limit`、`refresh`、`maxBytes`。返回当前 Agent 可见的 Service 和方法名称。 |
 | Host / `Inspect.method` | `platform`、`service`、`method`；默认不带类型，`includeTypes: true` 时仅带选定方法可达的声明。 |
 | Host / `SourceNav.resolve` | `packageName`、可选 `entry`，如 `.` 或 `./client`。返回 exports 的条件目标和真实存在性，不猜测类型文件位置。 |
@@ -36,7 +36,7 @@ SourceNav 只访问安装包 source root 内的指定 npm 包；拒绝路径穿�
 
 ## 绑定页面与刷新
 
-`dsh_page` 使用用户当前 GUI origin/path 和主会话 id（默认请求 Agent id），通过 `Page.inspect` 确认页面，再接受该次返回的完整身份。对不上时没有完整身份，只有 origin 和 pathname。Desktop 的实际页面可以是 `dsh-app://app/`；这个已识别地址可传给 `dsh_page`，其他未知 scheme 仍被拒绝。工具内部传 `requireMatch: true`，使不匹配页面不抢占另一匹配页面的回复；直接 `Page.inspect` 默认保留 origin/path 诊断。`pageId` 随插件挂载变化；`documentId` 存在 document 的私有 Symbol 上，插件重挂载保留、真正新文档改变；`graphRevision` 是该页内模块 id/rev 清单发生变化时推进的 opaque 代次，不是 Host 广告值或源码 hash。
+`dsh_page` 使用用户当前 GUI origin/path 和主会话 id（默认请求 Agent id），通过 `Page.inspect` 确认页面，再接受该次返回的完整身份。`active: true` 改为在一次原子快照中读取当前主会话，避免先查 Runtime.status 后发生会话切换；它仅用于 inspect，reload/click 仍须使用一次检查返回的完整身份。对不上时没有完整身份，只有 origin 和 pathname。Desktop 的实际页面可以是 `dsh-app://app/`；这个已识别地址可传给 `dsh_page`，其他未知 scheme 仍被拒绝。工具内部传 `requireMatch: true`，使不匹配页面不抢占另一匹配页面的回复；直接 `Page.inspect` 默认保留 origin/path 诊断。`pageId` 随插件挂载变化；`documentId` 存在 document 的私有 Symbol 上，插件重挂载保留、真正新文档改变；`graphRevision` 是该页内模块 id/rev 清单发生变化时推进的 opaque 代次，不是 Host 广告值或源码 hash。
 
 刷新与页面点击通过现有 `connection.fetch.register` 的认证 `/api/dsh-devtools/page/poll` 与 `/ack` 通道交付。Inspect 查询不会入队操作。Client 在接收命令、ack 后和副作用之前复核身份/卸载状态；刷新只接受新文档回执，点击只接受同页的实际执行回执，再查询预期元素和目标模块。会话漂移、模块变化或验收不符保留 `unverified`。连接重绑定撤销待办，不永久销毁整个桥。
 
@@ -70,7 +70,7 @@ Config 的 `status: absent` 仅表示插件没有声明 Config schema。它不�
 
 `Runtime.checks` 是当前 Host 进程内的最近记录；重启后返回 `status: not-run` 属于尚未触发，不是失败，也不能代表新进程已通过交付校验。历史验收保存在独立证据中，不能用旧记录替代当前检查。GUI 地址随启动变化，使用会话提供的当前 URL，不固定端口或保存授权 URL。`dsh_page` 接受 http(s) 和已识别的本机 Desktop 页面地址。HTTP 后端地址与 Desktop renderer 地址可能不同；2026-11-10 实测 renderer 为 `dsh-app://app/`。直接 `Page.inspect` 的 mismatch 只报告安全 origin/path，不返回不匹配会话 id。目标会话未在该页打开时仍拒绝刷新；诊断响应不代表页面验收通过。
 
-只读 Runtime 输出不包含插件完整配置、用户消息、未知异常文本或凭据。已知错误只映射为固定错误码，Slot 和模块标识来自结构化运行态。
+只读 Runtime 输出不包含插件完整配置、用户消息或凭据。任意模块加载异常仍只映射为固定错误码；RenderBoundary 主动上报的 message/componentStack 是单独的有界诊断内容，最多分别保留 2000/8000 字符，不读取 DOM 正文；常见 JS 类型错误保留原文，其他 message 只返回固定脱敏说明，componentStack 省略源码位置，并对常见 token、API key、Bearer、Cookie 与密钥形状做脱敏。页面验收可用 `expectNoRenderErrors: true` 要求当前会话的该集合为空。
 
 ## 项目校验与自动执行
 

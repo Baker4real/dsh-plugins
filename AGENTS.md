@@ -8,7 +8,7 @@
 - `dsh-progress-guard/`：进度防复读，子目录 `devtools/` 与 `goal-wait/` 是独立 bundle。
 - `dsh-gpt-image-playground-magpie/`：生图工作台的 magpie 接入。
 - `dsh-subagent-ui/`：子代理管理工作台，保留上游 MIT 许可证与本地改动。
-- `dsh-skills-root-guard/`：拦截对现役 skills 根的直接 write/edit 工具调用。
+- `dsh-skills-root-guard/`：拦截对现役 skills 根的直接 write/edit，并把 app.asar 的原生 grep/glob 引导到 Host 源码读取器。
 
 ## 操作
 

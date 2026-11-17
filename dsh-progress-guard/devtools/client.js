@@ -11,6 +11,43 @@ window.__ModuleLoader__.load({
       if (/inject|service|dependency/u.test(message)) return { code: 'DEPENDENCY_FAILURE' };
       return { code: 'PLUGIN_FAILURE', detail: 'Raw exception omitted because it can contain configuration values.' };
     }
+    function diagnosticText(value, limit) {
+      return value
+        .replace(/\b(?:token|api[-_]?key|secret|password|authorization|cookie)=([^\s&;,"']+)/giu, (match) => `${match.split('=')[0]}=<REDACTED>`)
+        .replace(/\b(Bearer\s+)[^\s,;"']+/giu, '$1<REDACTED>')
+        .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/gu, '<REDACTED>')
+        .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/gu, '<REDACTED>')
+        .slice(0, limit);
+    }
+    function diagnosticMessage(value) {
+      const text = diagnosticText(value, 2000);
+      const safe = /^Cannot read properties of (?:undefined|null)(?: \(reading '.{1,200}'\))?$/u.test(text)
+        || /^[\w$.]+ is not (?:a function|an object)$/u.test(text)
+        || /^SYNTHETIC_[A-Z0-9_]+$/u.test(text);
+      return safe ? text : 'Render error omitted because it may contain configuration values.';
+    }
+    function diagnosticStack(value) {
+      return diagnosticText(value, 8000)
+        .split('\n').slice(0, 80)
+        .map(line => line.replace(/(?:https?|dsh-app):\/\/[^\s)]+/g, '<location>').replace(/\s*\([^()]*\)/g, ' (<location>)'))
+        .join('\n').slice(0, 8000);
+    }
+    function renderErrorRecord(detail) {
+      if (!detail || typeof detail.boundaryId !== 'string' || !/^[\w:.-]{1,160}$/u.test(detail.boundaryId)) return null;
+      if (typeof detail.message !== 'string' || detail.message.length === 0) return null;
+      const sessionId = typeof detail.sessionId === 'string' && /^[A-Za-z0-9_.:-]{1,128}$/u.test(detail.sessionId) ? detail.sessionId : null;
+      const tab = detail.tab && typeof detail.tab === 'object'
+        ? { id: typeof detail.tab.id === 'string' ? detail.tab.id.slice(0, 128) : null, type: typeof detail.tab.type === 'string' ? detail.tab.type.slice(0, 128) : null }
+        : null;
+      return {
+        boundaryId: detail.boundaryId,
+        scope: detail.scope === 'root' ? 'root' : 'tab',
+        sessionId, tab,
+        message: diagnosticMessage(detail.message),
+        componentStack: typeof detail.componentStack === 'string' ? diagnosticStack(detail.componentStack) : '',
+        observedAt: new Date().toISOString(),
+      };
+    }
     function packageMatches(id, name) { return name === undefined || id === name || id.startsWith(`${name}/`); }
     function ownsRegistration(occupant, name) {
       if (name === undefined) return true;
@@ -176,16 +213,42 @@ window.__ModuleLoader__.load({
       inject: ['slots'],
       apply(ctx) {
         const errors = [];
+        const renderErrors = new Map();
+        ctx.effect(() => {
+          if (typeof window.addEventListener !== 'function') return undefined;
+          const reported = event => {
+            const record = renderErrorRecord(event?.detail);
+            if (!record) return;
+            if (!renderErrors.has(record.boundaryId) && renderErrors.size >= 20) {
+              renderErrors.delete(renderErrors.keys().next().value);
+            }
+            renderErrors.set(record.boundaryId, record);
+          };
+          const recovered = event => {
+            const boundaryId = event?.detail?.boundaryId;
+            if (typeof boundaryId === 'string') renderErrors.delete(boundaryId);
+          };
+          window.addEventListener('dsh-better-sidebar/render-error', reported);
+          window.addEventListener('dsh-better-sidebar/render-recovered', recovered);
+          return () => {
+            window.removeEventListener('dsh-better-sidebar/render-error', reported);
+            window.removeEventListener('dsh-better-sidebar/render-recovered', recovered);
+          };
+        }, 'devtools: bounded RenderBoundary diagnostics');
         const page = createPageInspection(ctx);
         connectPageReload(ctx, page);
         ctx.inject(['cordisInspect'], inspectCtx => inspectCtx.effect(() => inspectCtx.cordisInspect.register({
           manifest: {
             id: 'Page', description: 'Read-only inspection bound to the exact page URL and active main Session. A mismatch returns only that page origin and pathname.',
-            methods: [{ name: 'inspect', description: 'Read page and module generations plus optional selector visibility and aria-expanded, without DOM text or navigation.', inputSchema: { type: 'object', properties: { url: { type: 'string', description: 'Current GUI origin and pathname, without query or fragment.' }, sessionId: { type: 'string', description: 'Active main Session id.' }, pageId: { type: 'string' }, documentId: { type: 'string' }, graphRevision: { type: 'string' }, packageName: { type: 'string' }, selector: { type: 'string', description: 'One CSS selector, at most 256 characters.' }, requireMatch: { type: 'boolean', description: 'Reject nonmatching pages so the Host can accept a different connected page. Defaults to false for path diagnostics.' } }, required: ['url', 'sessionId'], additionalProperties: false }, outputSchema: { description: 'Matched page identity, actual module revisions and optional structural element state.' } }],
+            methods: [{ name: 'inspect', description: 'Read page and module generations plus optional selector visibility and aria-expanded, without DOM text or navigation.', inputSchema: { type: 'object', properties: { url: { type: 'string', description: 'Current GUI origin and pathname, without query or fragment.' }, sessionId: { type: 'string', description: 'Active main Session id.' }, active: { type: 'boolean', description: 'Inspect the current active main Session in one atomic snapshot; inspect-only and incompatible with sessionId.' }, pageId: { type: 'string' }, documentId: { type: 'string' }, graphRevision: { type: 'string' }, packageName: { type: 'string' }, selector: { type: 'string', description: 'One CSS selector, at most 256 characters.' }, requireMatch: { type: 'boolean', description: 'Reject nonmatching pages so the Host can accept a different connected page. Defaults to false for path diagnostics.' } }, required: ['url'], additionalProperties: false }, outputSchema: { description: 'Matched page identity, actual module revisions and optional structural element state.' } }],
           },
           async query(method, input = {}) {
             if (method !== 'inspect') throw new Error('Unknown Page method');
-            if (typeof input.url !== 'string' || input.url.length > 2048 || typeof input.sessionId !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/u.test(input.sessionId)) throw new Error('INVALID_PAGE_TARGET');
+            if (typeof input.url !== 'string' || input.url.length > 2048) throw new Error('INVALID_PAGE_TARGET');
+            if (input.active !== undefined && typeof input.active !== 'boolean') throw new Error('INVALID_PAGE_TARGET');
+            if (input.active === true) {
+              if (input.sessionId !== undefined) throw new Error('INVALID_PAGE_TARGET');
+            } else if (typeof input.sessionId !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/u.test(input.sessionId)) throw new Error('INVALID_PAGE_TARGET');
             let result;
             try { result = page.snapshot(); } catch (error) {
               if (error?.message !== 'PAGE_LOCATION_UNAVAILABLE') throw error;
@@ -200,7 +263,7 @@ window.__ModuleLoader__.load({
             }
             if (input.packageName !== undefined && (typeof input.packageName !== 'string' || !/^[A-Za-z0-9@_./-]{1,214}$/u.test(input.packageName))) throw new Error('INVALID_PACKAGE_NAME');
             const selected = result.modules.filter(row => packageMatches(row.id, input.packageName));
-            return { status: result.page.ready ? 'ready' : 'not-ready', page: result.page, modules: selected.slice(0, 25), modulesTruncated: selected.length > 25, ...(input.selector === undefined ? {} : { element: page.elementState(input.selector) }) };
+            return { status: result.page.ready ? 'ready' : 'not-ready', page: result.page, modules: selected.slice(0, 25), modulesTruncated: selected.length > 25, renderErrors: [...renderErrors.values()].filter(row => row.sessionId === result.page.sessionId), ...(input.selector === undefined ? {} : { element: page.elementState(input.selector) }) };
           },
         }), 'devtools: identity-bound Page inspection'));
         ctx.effect(() => ctx.slots.onEntryError((key, entry, error) => {
@@ -210,7 +273,7 @@ window.__ModuleLoader__.load({
           manifest: {
             id: 'Runtime',
             description: 'Read-only Client module failures, Slot winner and Session catalog availability; never opens history or navigates.',
-            methods: [{ name: 'status', description: 'Read loaded module ids and classified failures. Omit slot to list this package\'s own registrations; a Slot winner is returned only for the slot you name.', inputSchema: { type: 'object', properties: { packageName: { type: 'string' }, slot: { type: 'string' }, entryKey: { type: 'string' }, sessionId: { type: 'string' } }, additionalProperties: false }, outputSchema: { description: 'Client graph identity, bounded classified failures, this package\'s registrations when slot is omitted, and one named Slot winner.' } }],
+            methods: [{ name: 'status', description: 'Read loaded module ids and classified failures. Omit slot to list this package\'s own registrations; a Slot winner is returned only for the slot you name.', inputSchema: { type: 'object', properties: { packageName: { type: 'string' }, slot: { type: 'string' }, entryKey: { type: 'string' }, sessionId: { type: 'string' } }, additionalProperties: false }, outputSchema: { description: 'Client graph identity, bounded classified failures, RenderBoundary errors, this package\'s registrations when slot is omitted, and one named Slot winner.' } }],
           },
           query(method, input = {}) {
             if (method !== 'status') throw new Error('Unknown Runtime method');
@@ -248,6 +311,7 @@ window.__ModuleLoader__.load({
               slot,
               ...(registrations === undefined ? {} : { registrations, registrationsTruncated }),
               slotErrors: errors.filter(row => (namedSlot === undefined || row.slot === namedSlot) && packageMatches(row.registrant ?? '', input.packageName)),
+              renderErrors: [...renderErrors.values()].filter(row => (input.sessionId === undefined || row.sessionId === input.sessionId) && (input.packageName === undefined || input.packageName === 'dsh-better-sidebar')),
               ...(input.sessionId === undefined ? {} : { session: { id: input.sessionId, catalogued: catalog === undefined ? null : Object.hasOwn(catalog, input.sessionId), retained: sessions?.binding(input.sessionId) !== undefined, historyOpenedByThisQuery: false } }),
             };
           },

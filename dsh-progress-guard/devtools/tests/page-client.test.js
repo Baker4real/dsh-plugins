@@ -6,10 +6,16 @@ import vm from 'node:vm';
 async function boot(location = { origin: 'http://127.0.0.1:7692', pathname: '/', href: 'http://127.0.0.1:7692/?token=SYNTHETIC_SECRET' }) {
   let declaration;
   const registrations = [];
+  const listeners = new Map();
   const state = { sessionId: 'session-task', activePanelId: null, revision: 'revision-a', expanded: 'false', left: 0, opacity: '1' };
   const element = { getBoundingClientRect: () => ({ left: state.left, top: 0, width: 20, height: 20 }), getAttribute: name => name === 'aria-expanded' ? state.expanded : null };
   const sandbox = {
-    window: { __ModuleLoader__: { load(value) { declaration = value; } }, location, innerWidth: 640, innerHeight: 480 },
+    window: {
+      __ModuleLoader__: { load(value) { declaration = value; } },
+      location, innerWidth: 640, innerHeight: 480,
+      addEventListener(name, listener) { listeners.set(name, listener); },
+      removeEventListener(name) { listeners.delete(name); },
+    },
     document: { readyState: 'complete', querySelectorAll: selector => selector === '.collapse' ? [element] : [] },
     TextEncoder, Uint8Array, getComputedStyle: () => ({ display: 'block', visibility: 'visible', opacity: state.opacity }),
   };
@@ -23,7 +29,7 @@ async function boot(location = { origin: 'http://127.0.0.1:7692', pathname: '/',
   };
   vm.runInNewContext(await readFile(new URL('../client.js', import.meta.url), 'utf8'), sandbox);
   declaration.factory().apply(ctx);
-  return { provider: registrations.find(item => item.manifest.id === 'Page'), state };
+  return { provider: registrations.find(item => item.manifest.id === 'Page'), state, listeners };
 }
 
 test('Page inspection returns matching session, safe URL, document and module generations', async () => {
@@ -101,6 +107,44 @@ test('a retained conversation hidden behind a global panel is not the active pag
   assert.equal(hidden.status, 'mismatch');
   assert.deepEqual(JSON.parse(JSON.stringify(hidden.mismatch)), ['sessionId']);
   assert.equal(hidden.page.url, 'http://127.0.0.1:7692/');
+});
+
+test('active inspection atomically returns the current session without a caller session id', async () => {
+  const { provider, state } = await boot();
+  const first = await provider.query('inspect', { url: 'http://127.0.0.1:7692/', active: true });
+  assert.equal(first.status, 'ready');
+  assert.equal(first.page.sessionId, 'session-task');
+  state.sessionId = 'session-next';
+  const second = await provider.query('inspect', { url: 'http://127.0.0.1:7692/', active: true });
+  assert.equal(second.page.sessionId, 'session-next');
+  assert.notEqual(second.page.sessionId, first.page.sessionId);
+});
+
+test('active inspection reports not-ready when no main session is active', async () => {
+  const { provider, state } = await boot();
+  state.activePanelId = 'settings';
+  const result = await provider.query('inspect', { url: 'http://127.0.0.1:7692/', active: true });
+  assert.equal(result.status, 'not-ready');
+  assert.equal(result.page.sessionId, null);
+});
+
+test('active inspection rejects an explicit session instead of silently choosing one', async () => {
+  const { provider } = await boot();
+  await assert.rejects(
+    provider.query('inspect', { url: 'http://127.0.0.1:7692/', active: true, sessionId: 'session-task' }),
+    /INVALID_PAGE_TARGET/u,
+  );
+});
+
+test('active inspection includes only the current session RenderBoundary errors', async () => {
+  const { provider, listeners } = await boot();
+  listeners.get('dsh-better-sidebar/render-error')({ detail: {
+    boundaryId: 'boundary-a', scope: 'tab', sessionId: 'session-task',
+    tab: { id: 'tab-a', type: 'subagent' }, message: 'render failed', componentStack: '',
+  } });
+  const result = await provider.query('inspect', { url: 'http://127.0.0.1:7692/', active: true });
+  assert.equal(result.renderErrors.length, 1);
+  assert.equal(result.renderErrors[0].sessionId, 'session-task');
 });
 
 test('a non-http page returns its origin and pathname without the query secret', async () => {

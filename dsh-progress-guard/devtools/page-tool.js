@@ -4,6 +4,7 @@ const properties = {
   action: { type: 'string', enum: ['inspect', 'reload', 'click'], description: 'inspect reads; reload waits for a new document; click activates the inspected element and verifies its declared result.' },
   url: { type: 'string', description: 'Actual page origin/path from inspection, including dsh-app://app/ on Desktop. No credentials, query or fragment.' },
   sessionId: { type: 'string', description: 'Active main Session; defaults to the requesting Agent id.' },
+  active: { type: 'boolean', description: 'For inspect only: atomically inspect the current active main Session without supplying sessionId.' },
   pageId: { type: 'string', description: 'Exact identity from inspect; required for reload.' },
   documentId: { type: 'string', description: 'Exact document identity from inspect; required for reload.' },
   graphRevision: { type: 'string', description: 'Exact module graph identity from inspect; required for reload.' },
@@ -13,6 +14,7 @@ const properties = {
   elementToken: { type: 'string', description: 'Fresh inspect token for click; changes with element identity, layout or state.' },
   verifySelector: { type: 'string', description: 'Required for click; unique selector whose resulting visible state is checked.' },
   expectedVisible: { type: 'boolean', description: 'Required for click; expected visibility of verifySelector after activation.' },
+  expectNoRenderErrors: { type: 'boolean', description: 'For inspect: require the current session to have no reported RenderBoundary errors.' },
 };
 
 export function pageVerification(result, args, advertised) {
@@ -22,7 +24,8 @@ export function pageVerification(result, args, advertised) {
   const matchesVisibility = expected ? visible : absent;
   const element = args.selector === undefined ? 'not-requested' : !matchesVisibility || (args.expectedExpanded !== undefined && result.element?.ariaExpanded !== args.expectedExpanded) ? 'failed' : 'passed';
   const module = args.packageName === undefined ? 'not-requested' : !advertised || result.modules?.find(row => row.id === args.packageName)?.rev !== advertised.rev ? 'failed' : 'passed';
-  return { pageReady: result.page?.ready === true, element, matchesAdvertisedModule: module, passed: result.page?.ready === true && element !== 'failed' && module !== 'failed', sourceBuildVerified: false };
+  const renderErrors = args.expectNoRenderErrors !== true ? 'not-requested' : Array.isArray(result.renderErrors) && result.renderErrors.length === 0 ? 'passed' : 'failed';
+  return { pageReady: result.page?.ready === true, element, matchesAdvertisedModule: module, renderErrors, passed: result.page?.ready === true && element !== 'failed' && module !== 'failed' && renderErrors !== 'failed', sourceBuildVerified: false };
 }
 
 export function createPageTool(ctx, bridge) {
@@ -35,11 +38,14 @@ export function createPageTool(ctx, bridge) {
     isConcurrencySafe: args => args?.action === 'inspect',
     async execute(args, exec) {
       if (!args || !['inspect', 'reload', 'click'].includes(args.action) || !exec.agent) throw new Error('INVALID_PAGE_ACTION');
+      if (args.active !== undefined && typeof args.active !== 'boolean') return { status: 'rejected', code: 'INVALID_ACTIVE' };
+      if (args.active === true && args.action !== 'inspect') return { status: 'rejected', code: 'ACTIVE_INSPECT_ONLY' };
+      if (args.expectNoRenderErrors !== undefined && (args.action !== 'inspect' || typeof args.expectNoRenderErrors !== 'boolean')) return { status: 'rejected', code: 'INVALID_RENDER_ERROR_EXPECTATION' };
       const url = canonicalPageUrl(args.url);
-      const sessionId = args.sessionId ?? exec.agent.id;
-      if (typeof sessionId !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/u.test(sessionId)) throw new Error('INVALID_SESSION_ID');
+      const sessionId = args.active === true ? undefined : args.sessionId ?? exec.agent.id;
+      if (sessionId !== undefined && (typeof sessionId !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/u.test(sessionId))) throw new Error('INVALID_SESSION_ID');
       if (args.expectedExpanded !== undefined && (typeof args.expectedExpanded !== 'boolean' || args.selector === undefined)) throw new Error('SELECTOR_REQUIRED');
-      const target = { url, sessionId, ...Object.fromEntries(['pageId', 'documentId', 'graphRevision', 'packageName', 'selector'].filter(key => args[key] !== undefined).map(key => [key, args[key]])) };
+      const target = { url, ...(sessionId === undefined ? {} : { sessionId }), ...(args.active === true ? { active: true } : {}), ...Object.fromEntries(['pageId', 'documentId', 'graphRevision', 'packageName', 'selector'].filter(key => args[key] !== undefined).map(key => [key, args[key]])) };
       if (args.action !== 'inspect' && ['pageId', 'documentId', 'graphRevision'].some(key => typeof target[key] !== 'string')) return { status: 'rejected', code: 'TARGET_IDENTITY_REQUIRED' };
       if (args.action === 'click' && (typeof args.selector !== 'string' || typeof args.elementToken !== 'string' || typeof args.verifySelector !== 'string' || typeof args.expectedVisible !== 'boolean')) return { status: 'rejected', code: 'CLICK_TARGET_AND_VERIFICATION_REQUIRED' };
       const query = input => ctx.cordisInspect.query('client', 'Page', 'inspect', { ...input, requireMatch: true }, exec.agent, exec.signal);

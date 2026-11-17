@@ -1,0 +1,200 @@
+diff --git a/lib/client.js b/lib/client.js
+index 545b1c9e28648e6d3b9a22bec71d29334ae6c0c6..73ddef62418312e2bee18a9498100f719a3f5359 100644
+--- a/lib/client.js
++++ b/lib/client.js
+@@ -33032,13 +33032,34 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
+ 		* The className prop selects the strip's geometry: the root's full-height
+ 		* fixed rail vs. the tab's pane-filling block.
+ 		*/
++		function reportBoundary(name, detail) {
++			if (typeof window === "undefined") return;
++			window.dispatchEvent(new CustomEvent(name, { detail }));
++		}
+ 		var RenderBoundary = class extends react.Component {
+ 			state = { error: null };
++			boundaryId = `render-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+ 			static getDerivedStateFromError(error) {
+ 				return { error: error instanceof Error ? error.message : String(error) };
+ 			}
+ 			componentDidCatch(error, info) {
+ 				console.error("[dsh-better-sidebar] render error:", error, info.componentStack);
++				const reporting = this.props.reporting;
++				const sessionId = typeof reporting?.sessionId === "function" ? reporting.sessionId() : reporting?.sessionId;
++				reportBoundary("dsh-better-sidebar/render-error", {
++					boundaryId: this.boundaryId,
++					scope: reporting?.scope ?? "root",
++					sessionId: sessionId ?? null,
++					tab: reporting?.tab ?? null,
++					message: error.message,
++					componentStack: info.componentStack ?? ""
++				});
++			}
++			reportRecovery() {
++				reportBoundary("dsh-better-sidebar/render-recovered", { boundaryId: this.boundaryId });
++			}
++			componentWillUnmount() {
++				this.reportRecovery();
+ 			}
+ 			render() {
+ 				if (this.state.error !== null) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+@@ -33047,6 +33068,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
+ 						type: "button",
+ 						className: sidebar_module_css_default.terminalRetry,
+ 						onClick: () => {
++							this.reportRecovery();
+ 							this.setState({ error: null });
+ 						},
+ 						children: t("terminalRetry")
+@@ -33083,7 +33105,10 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
+ 				tab,
+ 				visible
+ 			});
+-			return (0, react.createElement)(RenderBoundary, { className: sidebar_module_css_default.tabBoundaryError }, (0, react.createElement)(descriptor.component, {
++			return (0, react.createElement)(RenderBoundary, {
++				className: sidebar_module_css_default.tabBoundaryError,
++				reporting: { scope: "tab", sessionId, tab: { id: tab.id, type: tab.type } }
++			}, (0, react.createElement)(descriptor.component, {
+ 				ctx,
+ 				store,
+ 				scope,
+@@ -34710,7 +34735,10 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
+ 				tab: view.tab,
+ 				visible: nativeTab.visible
+ 			}));
+-			return (0, react.createElement)(RenderBoundary, { className: sidebar_module_css_default.tabBoundaryError }, (0, react.createElement)(ContextDiagnosticsHost, { controller: props.diagnostics }, (0, react.createElement)("div", {
++			return (0, react.createElement)(RenderBoundary, {
++				className: sidebar_module_css_default.tabBoundaryError,
++				reporting: { scope: "tab", sessionId: seatSessionId, tab: { id: nativeTab.id, type: descriptorId } }
++			}, (0, react.createElement)(ContextDiagnosticsHost, { controller: props.diagnostics }, (0, react.createElement)("div", {
+ 				className: sidebar_module_css_default.nativeTabHost,
+ 				"data-dsh-native-tab-host": ""
+ 			}, (0, react.createElement)(descriptor.component, {
+@@ -38071,7 +38099,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
+ 							host.setAttribute("data-dsh-better-sidebar", "");
+ 							document.body.appendChild(host);
+ 							root = (0, react_dom_client.createRoot)(host);
+-							root.render((0, react.createElement)(RenderBoundary, { className: sidebar_module_css_default.boundaryError }, (0, react.createElement)(ContextDiagnosticsHost, { controller: diagnostics }, (0, react.createElement)(Sidebar, {
++							root.render((0, react.createElement)(RenderBoundary, { className: sidebar_module_css_default.boundaryError, reporting: { scope: "root", sessionId: () => mountedSessionId(ctx) } }, (0, react.createElement)(ContextDiagnosticsHost, { controller: diagnostics }, (0, react.createElement)(Sidebar, {
+ 								ctx,
+ 								store: sidebarStore
+ 							}))));
+diff --git a/src/client/RenderBoundary.tsx b/src/client/RenderBoundary.tsx
+index 32e66b2a5ac897ab453e28d9df935c227e7146a6..2edf0dc46c1c9b99c529bdd9f2369a5a43c14304 100644
+--- a/src/client/RenderBoundary.tsx
++++ b/src/client/RenderBoundary.tsx
+@@ -18,8 +18,26 @@ import { Component, type ErrorInfo, type ReactNode } from 'react'
+ import { t } from './locales.ts'
+ import css from './sidebar.module.css'
+ 
+-export class RenderBoundary extends Component<{ children?: ReactNode; className?: string }, { error: string | null }> {
++export interface RenderBoundaryReporting {
++  scope: 'root' | 'tab'
++  sessionId?: string | (() => string | undefined)
++  tab?: { id: string; type: string }
++}
++
++type RenderBoundaryProps = {
++  children?: ReactNode
++  className?: string
++  reporting?: RenderBoundaryReporting
++}
++
++function reportBoundary(name: string, detail: Record<string, unknown>): void {
++  if (typeof window === 'undefined') return
++  window.dispatchEvent(new CustomEvent(name, { detail }))
++}
++
++export class RenderBoundary extends Component<RenderBoundaryProps, { error: string | null }> {
+   state = { error: null as string | null }
++  readonly boundaryId = `render-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+ 
+   static getDerivedStateFromError(error: unknown): { error: string } {
+     return { error: error instanceof Error ? error.message : String(error) }
+@@ -27,6 +45,24 @@ export class RenderBoundary extends Component<{ children?: ReactNode; className?
+ 
+   componentDidCatch(error: Error, info: ErrorInfo): void {
+     console.error('[dsh-better-sidebar] render error:', error, info.componentStack)
++    const reporting = this.props.reporting
++    const sessionId = typeof reporting?.sessionId === 'function' ? reporting.sessionId() : reporting?.sessionId
++    reportBoundary('dsh-better-sidebar/render-error', {
++      boundaryId: this.boundaryId,
++      scope: reporting?.scope ?? 'root',
++      sessionId: sessionId ?? null,
++      tab: reporting?.tab ?? null,
++      message: error.message,
++      componentStack: info.componentStack ?? '',
++    })
++  }
++
++  reportRecovery(): void {
++    reportBoundary('dsh-better-sidebar/render-recovered', { boundaryId: this.boundaryId })
++  }
++
++  componentWillUnmount(): void {
++    this.reportRecovery()
+   }
+ 
+   render(): ReactNode {
+@@ -37,7 +73,7 @@ export class RenderBoundary extends Component<{ children?: ReactNode; className?
+           <button
+             type="button"
+             className={css.terminalRetry}
+-            onClick={() => { this.setState({ error: null }) }}
++            onClick={() => { this.reportRecovery(); this.setState({ error: null }) }}
+           >
+             {t('terminalRetry')}
+           </button>
+diff --git a/src/client/index.tsx b/src/client/index.tsx
+index 7b06e92da7eaa8936f0a7b5a464c1364bb64d6fb..9b552ddfb4c234001f57187b284f27f8f48d4064 100644
+--- a/src/client/index.tsx
++++ b/src/client/index.tsx
+@@ -23,7 +23,7 @@ import { registerNativeSurface } from './native/index.ts'
+ import { createNativeGuideCatalog } from './native/guide-catalog.ts'
+ import { registerBottomToggle } from './sidebar/bottom-toggle.tsx'
+ import { ContextDiagnosticsHost, createContextDiagnosticsHost, registerContextDiagnosticsUI } from './context-diagnostics-ui.tsx'
+-import { createNativeSurface } from './native/surface.ts'
++import { createNativeSurface, mountedSessionId } from './native/surface.ts'
+ import { isTargetAvailable, openInterceptedLink, registerLinkInterception, shouldTakeOverLink } from './link-intercept.ts'
+ import { registerImeGuard } from './ime-guard.ts'
+ import { registerQuoteSource } from './selection-quote.ts'
+@@ -346,7 +346,7 @@ export function apply(ctx: Context): void {
+           root = createRoot(host)
+           root.render(createElement(
+             RenderBoundary,
+-            { className: css.boundaryError },
++            { className: css.boundaryError, reporting: { scope: 'root', sessionId: () => mountedSessionId(ctx) } },
+             createElement(
+               ContextDiagnosticsHost,
+               { controller: diagnostics },
+diff --git a/src/client/native/tab-adapter.tsx b/src/client/native/tab-adapter.tsx
+index b895b475a048ddbd1ec79aaa9e015dc4b9669b04..3bd8397f2710ee854401be576786b4e7949bd14d 100644
+--- a/src/client/native/tab-adapter.tsx
++++ b/src/client/native/tab-adapter.tsx
+@@ -538,7 +538,10 @@ export function NativeTabBody(props: NativeBodyInjected & NativeBodyFrameworkPro
+   }
+   return createElement(
+     RenderBoundary,
+-    { className: css.tabBoundaryError },
++    {
++      className: css.tabBoundaryError,
++      reporting: { scope: 'tab', sessionId: seatSessionId, tab: { id: nativeTab.id, type: descriptorId } },
++    },
+     // The full-height host wrapper (see the `.nativeTabHost` rule in
+     // sidebar.module.css for the native `.paneBody` contract); its
+     // `data-dsh-native-tab-host` attribute lets the e2e lane assert the fill.
+diff --git a/src/client/sidebar/TabContent.tsx b/src/client/sidebar/TabContent.tsx
+index 5dc18871ed8b3e3e9768e75241fdf64057ce655a..cd65ee98f9f3192d68392a65131bbb76a5b018f3 100644
+--- a/src/client/sidebar/TabContent.tsx
++++ b/src/client/sidebar/TabContent.tsx
+@@ -48,7 +48,10 @@ export const TabContent = memo(function TabContent(props: TabContentProps) {
+   }
+   return createElement(
+     RenderBoundary,
+-    { className: css.tabBoundaryError },
++    {
++      className: css.tabBoundaryError,
++      reporting: { scope: 'tab', sessionId, tab: { id: tab.id, type: tab.type } },
++    },
+     createElement(descriptor.component, {
+       ctx, store, scope, tab, visible, expanded, revealed,
+       onToggleDir, onReferenceFile, onOpenDiff, onSubagentJump,

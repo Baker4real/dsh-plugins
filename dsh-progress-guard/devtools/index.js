@@ -55,6 +55,8 @@ export function apply(ctx) {
       if (current.active !== true || current.registrant !== PACKAGE || current.errors?.length) return { status: 'failed', code: 'CLIENT_NOT_ACTIVE' };
       const actual = await query('client', 'Runtime', 'status', { packageName: PACKAGE }, agent, signal);
       if (actual.failures.length || actual.slotErrors.length || actual.moduleSystem !== 'available') return { status: 'failed', code: 'CLIENT_MODULE_FAILURE' };
+      const rendered = await query('client', 'Runtime', 'status', { sessionId: agent.id }, agent, signal);
+      if (rendered.renderErrors?.length) return { status: 'failed', code: 'CLIENT_RENDER_FAILURE', count: rendered.renderErrors.length };
       const advertised = ctx.clientModules.graph().entries.find(row => row.id === PACKAGE);
       const loaded = actual.entries.find(row => row.id === PACKAGE);
       if (!advertised || !loaded || loaded.rev !== advertised.rev) return { status: 'failed', code: 'CLIENT_GENERATION_MISMATCH' };

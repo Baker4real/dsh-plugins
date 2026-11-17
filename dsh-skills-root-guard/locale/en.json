@@ -1,4 +1,4 @@
 {
   "title": "Skills Root Guard",
-  "description": "Deny direct writes to the active skills root."
+  "description": "Guard skills-root writes and route ASAR searches to Host source readers."
 }

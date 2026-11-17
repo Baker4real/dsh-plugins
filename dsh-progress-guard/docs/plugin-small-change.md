@@ -42,10 +42,10 @@
 Web 使用 runtime context 当前给出的 GUI 地址，不保存固定端口，不使用带 query/fragment 的授权 URL。Desktop 先由 `Page.inspect` 确认安全 origin/path，renderer 可能是 `dsh-app://app/`，与 HTTP 后端地址不同。然后调用 `dsh_page`：
 
 ```json
-{"action":"inspect","url":"http://127.0.0.1:CURRENT_PORT/","packageName":"dsh-subagent-workspace-ui","selector":".dsh-sam-active-collapse","expectedExpanded":false}
+{"action":"inspect","active":true,"url":"http://127.0.0.1:CURRENT_PORT/","packageName":"dsh-subagent-workspace-ui","selector":".dsh-sam-active-collapse","expectedExpanded":false,"expectNoRenderErrors":true}
 ```
 
-将示例端口替换成当前地址。`sessionId` 默认取请求 Agent 的会话；需要其他主会话时明确提供 id。只有 URL 和主会话匹配的页面会回答。检查返回 `pageId`、`documentId`、`graphRevision`、实际模块 revision 和结构化元素状态；不返回 DOM 正文或 URL 中的凭据。
+将示例端口替换成当前地址。`active: true` 在一次原子快照中读取当前主会话，不必先查 Runtime.status 再传 sessionId；只有无活动主会话时才返回 not-ready。需要指定其他主会话时，去掉 active 并显式传 sessionId。检查返回 `pageId`、`documentId`、`graphRevision`、实际模块 revision 和结构化元素状态；不返回 DOM 正文或 URL 中的凭据。`expectNoRenderErrors: true` 另要求当前会话没有 RenderBoundary 错误，结果见 `verification.renderErrors`。
 
 确需刷新时，在 `action: "reload"` 中带上上述完整身份；调用本身有副作用，应在本次用户授权范围内。工具只向匹配的页面发固定 reload 命令，不发送按键、不导航、不打开替代页面。命令 ack 只代表接受；新文档回执和再次检查通过后，结果才是 `verified`。页面、会话或模块代次变化时拒绝旧身份。
 

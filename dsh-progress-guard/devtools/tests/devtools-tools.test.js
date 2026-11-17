@@ -24,6 +24,36 @@ test('inspect defaults to requesting session and reports the actual disclosure a
   assert.equal(tool.isConcurrencySafe({ action: 'reload' }), false);
 });
 
+test('active inspect uses the current page session without injecting the requesting agent id', async () => {
+  let observed;
+  const activePage = { ...page, sessionId: 'session-current' };
+  const tool = pageTool(async (...args) => { observed = args; return { ...result(), page: activePage }; });
+  const output = await tool.execute({ action: 'inspect', active: true, url: page.url }, exec());
+  assert.equal(observed[3].active, true);
+  assert.equal(Object.hasOwn(observed[3], 'sessionId'), false);
+  assert.equal(output.page.sessionId, 'session-current');
+});
+
+test('active identity is inspect-only and cannot authorize a reload', async () => {
+  const tool = pageTool(async () => { throw new Error('query must not run'); });
+  const output = await tool.execute({ action: 'reload', active: true, url: page.url }, exec());
+  assert.equal(output.code, 'ACTIVE_INSPECT_ONLY');
+});
+
+test('inspect can require an empty RenderBoundary error set for the current session', async () => {
+  const withError = pageTool(async () => ({ ...result(), renderErrors: [{ boundaryId: 'boundary-a', message: 'render failed' }] }));
+  const failed = await withError.execute({ action: 'inspect', active: true, url: page.url, expectNoRenderErrors: true }, exec());
+  assert.equal(failed.verification.renderErrors, 'failed');
+  assert.equal(failed.verification.passed, false);
+  const clear = pageTool(async () => ({ ...result(), renderErrors: [] }));
+  const passed = await clear.execute({ action: 'inspect', active: true, url: page.url, expectNoRenderErrors: true }, exec());
+  assert.equal(passed.verification.renderErrors, 'passed');
+  assert.equal(passed.verification.passed, true);
+  const unrequested = await withError.execute({ action: 'inspect', active: true, url: page.url, expectNoRenderErrors: false }, exec());
+  assert.equal(unrequested.verification.renderErrors, 'not-requested');
+  assert.equal(unrequested.verification.passed, true);
+});
+
 test('reload needs the full identity and never dispatches after an unmatched page query', async () => {
   const tool = pageTool(async () => { throw new Error('no matching page'); });
   assert.equal((await tool.execute({ action: 'reload', url: page.url }, exec())).code, 'TARGET_IDENTITY_REQUIRED');
