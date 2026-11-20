@@ -8,14 +8,26 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const installed = process.env.DSH_GOAL_WAIT_DSH_ROOT || 'D:/Users/WINDOWS/AppData/Local/Programs/DeepSeek Harness/resources/app.asar/dsh';
 // Host releases this package was verified against; engines.dsh must list exactly these.
-const verifiedHostVersions = ['0.2.2-rc.1', '0.2.2-rc.2', '0.2.2-rc.3'];
+const verifiedHostVersions = ['0.2.2-rc.1', '0.2.2-rc.2', '0.2.2-rc.3', '0.2.2-rc.5'];
+// These assertions target the separately managed local Chat patch.
+const chatPatchTests = ['chat-fold.test.js', 'chat-final-response-marker.test.js'];
+const chatPatchHostVersion = '0.2.2-rc.3';
 const checks = [];
 const report = { schemaVersion: 1, status: 'failed', packageName: '@local/dsh-goal-wait', checks };
-const bound = value => String(value?.message ?? value).slice(-10000);
-function stage(name, action) {
+const verbose = process.argv.includes('--full-diagnostics');
+const bound = value => String(value?.message ?? value).split(/\r?\n/, 1)[0].slice(0, 320);
+function stage(name, action, passes = () => true) {
   const start = Date.now();
-  try { const details = action(); checks.push({ name, status: 'passed', durationMs: Date.now() - start, details }); return true; }
-  catch (error) { checks.push({ name, status: 'failed', durationMs: Date.now() - start, error: bound(error) }); return false; }
+  try {
+    const details = action();
+    const ok = passes(details);
+    checks.push({ name, status: ok ? 'passed' : 'failed', durationMs: Date.now() - start, details });
+    return ok;
+  } catch (error) {
+    checks.push({ name, status: 'failed', durationMs: Date.now() - start, error: bound(error),
+      ...(verbose ? { details: { output: String(error?.stack ?? error) } } : {}) });
+    return false;
+  }
 }
 function contained(file) {
   const absolute = resolve(root, file);
@@ -35,7 +47,27 @@ function expand(pattern) {
   assert.ok(names.length > 0, `Distribution pattern has no matches: ${pattern}`);
   return names.map(n => join(directory, n).replaceAll('\\', '/'));
 }
+function runTests(tests) {
+  const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
+  delete env.NODE_TEST_CONTEXT;
+  const reporter = pathToFileURL(contained('scripts/test-diagnostics.mjs')).href;
+  const reporters = [`--test-reporter=${reporter}`, '--test-reporter-destination=stdout'];
+  if (verbose) reporters.push('--test-reporter=spec', '--test-reporter-destination=stderr');
+  const child = spawnSync(process.execPath, [
+    '--import', pathToFileURL(contained('scripts/runtime-loader.mjs')).href,
+    '--test', ...reporters, '--test-timeout=30000', ...tests.map(file => contained(`tests/${file}`)),
+  ], { env, cwd: root, encoding: 'utf8', timeout: 60000, maxBuffer: 128 * 1024, windowsHide: true });
+  if (child.error) throw child.error;
+  let summary;
+  try { summary = JSON.parse(child.stdout); }
+  catch { throw new Error(bound(child.stderr || 'Test runner returned no diagnostic report.')); }
+  assert.ok(Number.isInteger(summary.passed) && Number.isInteger(summary.failed), 'Test runner returned no summary.');
+  const details = { tests, ...summary, ...(verbose ? { output: child.stderr } : {}) };
+  if (child.status !== 0 || summary.failed !== 0) return { ...details, failedRun: true };
+  return details;
+}
 function main() {
+  let hostVersion;
   if (!stage('installed-runtime', () => {
     assert.ok(process.versions.electron, 'Checks must run in installed Electron Node mode.');
     const require = createRequire(pathToFileURL(`${installed}/package.json`));
@@ -46,6 +78,7 @@ function main() {
       assert.ok(verifiedHostVersions.includes(versions[name]), `${name}@${versions[name]} is not a verified Host version.`);
     }
     assert.equal(new Set(Object.values(versions)).size, 1, 'Host packages must come from one DSH release.');
+    hostVersion = versions['@deepseek-ai/dsh-goal'];
     return { electron: process.versions.electron, node: process.versions.node, versions };
   })) return;
   let files;
@@ -56,6 +89,9 @@ function main() {
     assert.equal(manifest.engines.dsh, verifiedHostVersions.join(' || '));
     assert.equal(manifest.scripts.check, 'node scripts/check.mjs');
     assert.equal(manifest.dsh.bundle.patch, './cordis.patch.yml');
+    assert.equal(manifest.dsh.client.platform, 'web');
+    assert.equal(manifest.dsh.client.immediately, true);
+    assert.ok(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-chat'));
     assert.equal(manifest.dependencies, undefined, 'Reuse Host packages; no package installation is needed.');
     files = new Set(manifest.files.flatMap(expand));
     for (const required of ['index.js', 'state.js', 'receipt.js', 'cordis.patch.yml', 'README.md', 'icon.svg', 'locale/en.json', 'locale/zh.json', 'scripts/check.mjs', 'scripts/check-runtime.mjs', 'scripts/runtime-loader.mjs']) assert.ok(files.has(required), `Missing resource: ${required}`);
@@ -111,15 +147,19 @@ function main() {
     return result;
   })) return;
   if (!stage('public-lifecycle-and-tool-tests', () => {
-    const tests = readdirSync(contained('tests')).filter(file => file.endsWith('.test.js')).sort();
+    const tests = readdirSync(contained('tests'))
+      .filter(file => file.endsWith('.test.js') && !chatPatchTests.includes(file))
+      .sort();
     assert.ok(tests.length >= 5);
-    const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
-    delete env.NODE_TEST_CONTEXT;
-    const child = spawnSync(process.execPath, ['--import', pathToFileURL(contained('scripts/runtime-loader.mjs')).href, '--test', '--test-reporter=spec', '--test-timeout=30000', ...tests.map(file => contained(`tests/${file}`))], { env, cwd: root, encoding: 'utf8', timeout: 60000, maxBuffer: 128 * 1024, windowsHide: true });
-    assert.equal(child.status, 0, bound(child.error || `${child.stdout}\n${child.stderr}`));
-    return { tests, output: child.stdout, coverage: ['official AgentLoop/native executor', 'official Goal/Session/round driver', 'official JSONL reopen', 'direct-human authority and one-shot resume', 'revision/unload/reload fences', 'bounded receipt expiry and deduplication'] };
-  })) return;
+    return { ...runTests(tests), coverage: ['official AgentLoop/native executor', 'official Goal/Session/round driver', 'official JSONL reopen', 'direct-human authority and one-shot resume', 'revision/unload/reload fences', 'bounded receipt expiry and deduplication'] };
+  }, details => !details.failedRun)) return;
+  if (hostVersion === chatPatchHostVersion || process.env.DSH_GOAL_WAIT_CHAT_PACKAGE) {
+    if (!stage('local-chat-patch-tests', () => runTests(chatPatchTests), details => !details.failedRun)) return;
+  } else {
+    report.localChatPatch = 'not-checked';
+  }
   report.status = 'passed';
 }
 main();
 process.stdout.write(`${JSON.stringify(report)}\n`);
+process.exitCode = report.status === 'passed' ? 0 : 1;

@@ -13,16 +13,23 @@ export async function runProjectChecks({ runtime, report, dshRoot } = {}) {
     if (!existsSync(executable) || !lstatSync(executable).isFile()) throw new Error('Installed Electron runtime not found.');
     const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1', ...(dshRoot ? { DSH_GOAL_WAIT_DSH_ROOT: dshRoot } : {}) };
     delete env.NODE_TEST_CONTEXT;
-    const child = spawnSync(executable, [resolve(here, 'check-runtime.mjs')], { env, cwd: resolve(here, '..'), encoding: 'utf8', timeout: 90000, maxBuffer: 128 * 1024, windowsHide: true });
-    if (child.error || child.status !== 0) throw new Error(bound(child.error || child.stderr || child.stdout || `Check exited ${child.status}`));
-    result = JSON.parse(child.stdout);
-    if (!['passed', 'failed'].includes(result.status) || !Array.isArray(result.checks)) throw new Error('Invalid check worker report.');
+    const child = spawnSync(executable, [resolve(here, 'check-runtime.mjs'), ...(report ? ['--full-diagnostics'] : [])], {
+      env, cwd: resolve(here, '..'), encoding: 'utf8', timeout: 90000, maxBuffer: 512 * 1024, windowsHide: true,
+    });
+    if (child.error) throw child.error;
+    try { result = JSON.parse(child.stdout); }
+    catch { throw new Error(bound(child.stderr || `Check exited ${child.status} without a report`)); }
+    if ((result.status === 'passed' ? 0 : result.status === 'failed' ? 1 : -1) !== child.status || !Array.isArray(result.checks)) {
+      throw new Error('Invalid check worker report.');
+    }
   } catch (error) { result = { schemaVersion: 1, status: 'failed', checks: [{ name: 'runtime', status: 'failed', error: bound(error) }] }; }
   if (report) {
     try {
       if (!isAbsolute(report) || !/^[dD]:[\\/]/.test(report) || (existsSync(report) && lstatSync(report).isSymbolicLink())) throw new Error('Report must be an absolute D-drive regular-file path.');
       writeFileSync(report, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+      result.reportPath = report;
     } catch (error) { result.status = 'failed'; result.checks.push({ name: 'report', status: 'failed', error: bound(error) }); }
+    for (const check of result.checks) if (check.details) delete check.details.output;
   }
   return result;
 }

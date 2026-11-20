@@ -1,6 +1,6 @@
 # 持续目标等待人工动作
 
-本包是独立的 Host bundle：只有人工动作尚未完成时，Agent 可调用 `wait_goal` 保留目标并停止后续自动轮次。顶层直接人工回复，或本次已登记的有界 JSON 回执，可恢复原目标一次。
+只有人工动作尚未完成时，Agent 可调用 `wait_goal`，保留目标并停止后续自动轮次。顶层直接人工回复，或本次已登记的有界 JSON 回执，可恢复原目标一次。
 
 ## 使用与授权
 
@@ -11,6 +11,8 @@ Agent 先向用户说清剩余的一个人工动作，再读取当前目标，�
 进入等待只允许精确 live Agent 的活动 driver 调用；该 Agent 必须是顶层 Agent，即会话头 `origin` 不是 `subagent`（DSH 0.2.2-rc.2 删除了 `ctx.agents.roots()`，官方迁移指南改用这一判断），当前 Turn 必须含直接人工消息，或原目标精确 revision 的正编号 Goal round。子代理、工具结果、定时任务和普通系统消息不能登记或恢复人工等待。工具名和参数由当前宿主 `defineTool()` 编译器生成并校验。
 
 这是显式能力：模型需要选择 `wait_goal`。本包不会根据回复中的“等你”“请确认”等文字猜测授权，也不替换官方 `get_goal` / `update_goal`。
+
+等待操作会出现在登记等待的回合底部，使用「仅最终回复」折叠时仍可见。查看较早的等待回合时可加载历史。提示随该会话下发，只包含回合号和动作正文，等待恢复或失效后撤下。
 
 ## 激活契约
 
@@ -30,7 +32,7 @@ Agent 先向用户说清剩余的一个人工动作，再读取当前目标，�
 
 ## 持久状态
 
-使用当前 `sessionProjections.register({ key, stateSchema, init, apply, stateVersion })` 的 host-only 投影。完整记录通过标准 `Agent.inject()` 插入 `agent/inbox/spliced`，随后用公开 `inbox.remove()` 取出，留下可重放日志而不留下待运行消息。这是正常的 inbox 插入/撤销审计，日志中可见这一对操作；不会追加未知 Session event，也不调用保留给官方 experimental 包的 `appendPluginRecord()`。
+`sessionProjections.register()` 从持久日志重放等待状态。投影只向会话 Client 发布等待动作和回合号。完整记录通过标准 `Agent.inject()` 插入 `agent/inbox/spliced`，随后用公开 `inbox.remove()` 取出，留下可重放日志而不留下待运行消息。这是正常的 inbox 插入/撤销审计，日志中可见这一对操作；不会追加未知 Session event，也不调用保留给官方 experimental 包的 `appendPluginRecord()`。
 
 会话重开时通过日志或 projection checkpoint 还原记录。记录绑定原 Session id，fork 不继承等待授权。日志持久性依赖宿主已有 session writer；缺少持久化后端时，与官方 Goal 一样只能保留进程内日志。本包不创建另一个存储根。
 
@@ -85,9 +87,11 @@ Agent 先向用户说清剩余的一个人工动作，再读取当前目标，�
 & 'D:/Codex/tools/bin/node.exe' goal-wait/scripts/check.mjs
 ```
 
-需要保留证据时传 `--report` 的绝对 D 盘 JSON 文件；目录需已存在。可用 `--runtime` 指定现有 Electron exe，`--dsh-root` 指定对应安装的 DSH 根。检查仅以 Electron Node 模式加载官方依赖，不启动 GUI、替代服务或安装包。
+默认报告列出失败阶段、测试名、源文件行号与简短错误。需要完整测试输出时，传 `--report` 并指定父目录已存在的 D 盘 JSON 文件。可用 `--runtime` 指定现有 Electron exe，`--dsh-root` 指定对应安装的 DSH 根。检查以 Electron Node 模式加载官方依赖。
 
-检查覆盖 distribution closure、patch/locale/icon、所有 JS 语法、当前工具 schema compiler、官方 AgentLoop + native tool pipeline、Chat 对 `wait_goal` 最终回复的折叠边界与 `data-chat-final-response` 语义标记、预先启动并冻结 nonce 的生产者原子成功回执、官方 Goal/Session/round driver、官方 JSONL 写入重开，以及人工/子代理权限、nonce 重放拒绝、单次恢复、revision 漂移、重载卸载、checkpoint 竞态、回执超时去重和输入边界。模型边界使用本地确定性 adapter，未向外部模型发送请求。测试写入自身 `D:/Codex/evidence/dsh-goal-wait-20261110/`，不使用现有 profile 数据。
+检查覆盖分发资源、语法、真实工具与会话运行时、输入授权、回执、单次恢复和持久状态重放。模型使用本地确定性 adapter，不访问外部模型，也不修改现有 profile。
+
+`0.2.2-rc.3` 默认执行 `local-chat-patch-tests`，核对原回复的折叠行为与 `data-chat-final-response` 标记。其他宿主可将 `DSH_GOAL_WAIT_CHAT_PACKAGE` 指向待验的 `@deepseek-ai/dsh-client-ui-chat` 包目录来执行同一组测试；未指定时报告 `localChatPatch: not-checked`。
 
 ### 显式跨包安装器联调
 
@@ -101,4 +105,4 @@ Agent 先向用户说清剩余的一个人工动作，再读取当前目标，�
 
 已通过的完整跨包与进程证据位于 `D:/Codex/evidence/dsh-goal-wait-20261110/cross-installer-a21abcf4-253f-40ab-ae0f-aba90156d976/`；原 fixture、Explorer worker 与重开 fixture 的实际 exit code 均为 0，launcher 和 observer 同样退出。`cross-cleanup.json` 另核对了此前失败调试 fixture 也无存活进程。1.0.1 的 Config/fresh-entry 与 early-human 修复之后仅重跑相关回归并做真实激活，未重复该跨包测试。
 
-兼容基线为官方 `@deepseek-ai/*` 0.2.2-rc.1、0.2.2-rc.2 与 0.2.2-rc.3；`engines.dsh` 和宿主包 peer 只列这三个已跑通 check 的版本。运行时导入的宿主包（`@deepseek-ai/dsh-llm`、`@deepseek-ai/dsh-tools`、`zod`）必须写进 `peerDependencies`：DSH 只替链接安装的插件解析声明过的宿主包（rc.1 起即如此），未声明的回落到普通 Node 解析。本包此前没有声明，2026-11-14 在 rc.3 上发现无法加载，补上声明后已在真实客户端确认激活；rc.1、rc.2 上是否真实加载过没有记录。check 静态核对 peer 与运行时导入一致，测试用的解析钩子也只替运行时模块路由声明过的宿主包；Harness 的真实解析仍以客户端激活为准。0.2.2-rc.1 公开 manifest 中部分 `.d.ts` 导出实际缺失，因此开发依据当前 Inspect 契约及已安装 JS，并用真实官方 runtime 验证。更换宿主版本后先重新运行 check。
+Host 兼容范围为官方 `@deepseek-ai/*` 0.2.2-rc.1、0.2.2-rc.2、0.2.2-rc.3 和 0.2.2-rc.5。`engines.dsh` 和宿主包 peer 明确列出这四个版本。运行时导入的宿主包（`@deepseek-ai/dsh-llm`、`@deepseek-ai/dsh-tools`、`zod`）必须写进 `peerDependencies`：DSH 只替链接安装的插件解析声明过的宿主包（rc.1 起即如此），未声明的回落到普通 Node 解析。本包此前没有声明，2026-11-14 在 rc.3 上发现无法加载，补上声明后已在真实客户端确认激活；rc.1、rc.2 上是否真实加载过没有记录。check 静态核对 peer 与运行时导入一致，测试用的解析钩子也只替运行时模块路由声明过的宿主包；Harness 的真实解析仍以客户端激活为准。0.2.2-rc.1 公开 manifest 中部分 `.d.ts` 导出实际缺失，因此开发依据当前 Inspect 契约及已安装 JS，并用真实官方 runtime 验证。更换宿主版本后先重新运行 check。

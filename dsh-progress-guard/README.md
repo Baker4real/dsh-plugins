@@ -7,7 +7,7 @@ intent: 说明独立插件的修复行为、安装边界、验证和回滚方式
 
 # 进度防复读
 
-本插件的已验证基线是 DeepSeek Harness 0.2.2-rc.3（2026-11-14 跑通 check，并在 rc.3 真实客户端确认 Host 投影已激活；客户端 Slot 的真实界面验证仍停在 0.2.2-rc.1）；后续宿主升级应重新核对版本、Slot 和依赖。独立 bundle 为 `@local/dsh-progress-guard`，源码位于 D 盘，通过 desktop profile 链接加载。插件自身不写入官方包；加载排查曾修改正式 ASAR，该残留状态与处理见 [实施验证](docs/verification.md)。
+`@local/dsh-progress-guard` 是独立 bundle，不改写宿主安装。DSH `0.2.2-rc.5` 通过了 Host 行为和 Client 生命周期检查，Desktop 上也确认了 Host 投影激活与 `assistant-step` 插槽接管。升级宿主后重新核对版本、插槽和依赖。历史验收见 [实施验证](docs/verification.md)；人工等待则由独立的 [goal-wait](goal-wait/README.md) bundle 提供。
 
 ## 行为
 

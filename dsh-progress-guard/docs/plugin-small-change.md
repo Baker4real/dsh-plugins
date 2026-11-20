@@ -33,7 +33,7 @@
 | `relationship: symlink-to-source` 且 `requirements.host: live-reload-candidate` | 先用 `plugin_manager.list_plugins` 取得既有 entry，再通过 `set_plugin` 禁用并重新启用以应用当前源码；跳过 `install_bundle`。 |
 | 安装目录是副本，或入口文件需要复制进 profile | 使用 `plugin_manager` 支持的更新路径；已安装时按 `nextStep` 处理，必要时在授权范围内移除后重新安装。 |
 | `requirements.host: restart-required` | 保留页面验收待办，仅在授权覆盖时重启选定宿主。 |
-| 规划为 `unknown` 或能力不足 | 保持页面验收未完成，按实际 `nextStep` 选择受支持操作。 |
+| 规划为 `unknown`，且目标是已启用的链接 bundle、兼容检查已通过 | 用 `plugin_manager.set_bundle` 请求重新应用并读 `application` 和 `nextStep`。Host 是否真的换代以运行行和行为为准，再核对 Client 实际代次。 |
 
 `live-reload-candidate` 只是规划，不代表内存模块已更新；不用卸载来探测能否热更新。
 

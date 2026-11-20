@@ -15,7 +15,7 @@
     "check": "node scripts/check.mjs"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-llm": "0.2.2-rc.1 || 0.2.2-rc.2 || 0.2.2-rc.3",
+    "@deepseek-ai/dsh-llm": "0.2.2-rc.1 || 0.2.2-rc.2 || 0.2.2-rc.3 || 0.2.2-rc.5",
     "zod": "^4.4.3"
   },
   "dsh": {

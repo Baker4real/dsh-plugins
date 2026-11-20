@@ -1,12 +1,12 @@
 import { setTimeout as delay } from 'node:timers/promises';
 
-export function createAdapter() {
+export function createAdapter(runDelayMs = 0) {
   const model = (provider, id) => ({
     provider, id, name: 'Local indicator acceptance fixture',
     inputModalities: ['text'], context: { contextWindow: 32768 },
   });
   async function* stream(options) {
-    await delay(300, undefined, { signal: options.signal });
+    if (runDelayMs > 0) await delay(runDelayMs, undefined, { signal: options.signal });
     if (options.model === 'error') {
       yield { type: 'finish', reason: { kind: 'error', failure: {
         code: 'INDICATOR_SMOKE_FAILURE', status: 400, message: '受控验收失败，无外部请求',

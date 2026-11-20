@@ -23,6 +23,8 @@
 **/*.run.json
 
 # Secrets and local configuration
+**/.local/
+**/*.local.md
 **/.env
 **/.env.*
 !**/.env.example

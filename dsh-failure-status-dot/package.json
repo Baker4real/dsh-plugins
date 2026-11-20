@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Show failed unread session completions in red in the sidebar.",
-  "engines": { "dsh": "0.2.2-rc.3" },
+  "engines": { "dsh": "0.2.2-rc.3 || 0.2.2-rc.5" },
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -15,7 +15,7 @@
   "peerDependencies": { "zod": "^4.4.3" },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "check": "node scripts/build.mjs --check && node --check index.js && node --check client.js && node --test tests/*.test.js"
+    "check": "node scripts/check.mjs"
   },
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" },

@@ -1,10 +1,10 @@
 # 运行失败红点
 
-这是 DSH 0.2.2-rc.3 的独立本地 bundle：失败且未读的完成圆点使用错误色，其他状态沿用官方行为。
+这是 DSH 的独立本地 bundle。失败且未读的完成圆点使用错误色，其他状态沿用官方行为。
 
 ## 运行与检查
 
-使用宿主提供的 Node 和 pnpm。`pnpm run check` 校验生成产物、入口语法及全部行为测试；`pnpm run build` 更新客户端产物。CI 单独执行 `node scripts/build.mjs --check` 和 `node --test tests/*.test.js`。
+使用宿主 Node 24。`node scripts/check.mjs` 是本地和 CI 共用的检查入口，校验生成产物、入口语法及行为测试。`node scripts/build.mjs` 更新客户端产物。
 
 ## 源码与边界
 

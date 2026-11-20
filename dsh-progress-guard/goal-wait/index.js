@@ -140,7 +140,7 @@ export async function apply(ctx, config = {}) {
       goal_id: { type: 'string', required: true, description: 'Current goal id.' },
       revision: { type: 'integer', required: true, description: 'Exact current goal revision.' },
       reason: { type: 'string', required: true, description: 'Concrete reason that only a human action remains; 1-1000 characters.' },
-      action: { type: 'string', required: true, description: 'The single action the human must perform; 1-1000 characters.' },
+      action: { type: 'string', required: true, description: 'One self-contained action for the human to take. Name what to do, where to do it and how to tell it is done. 1-1000 characters.' },
       receipt_path: { type: 'string', description: 'Optional absolute D-drive *.goal-wait.json file in configured receiptRoots; omit for human reply only. Fixed payload is version:1, waitId, goalId, revision, status:"ready".' },
       wait_id: { type: 'string', description: 'With receipt_path only: optional pre-generated UUID nonce already frozen by the receipt producer. Omit to generate one. Never reuse a nonce for another wait.' },
       receipt_timeout_seconds: { type: 'integer', description: 'With receipt_path only: 1 to configured maxReceiptSeconds (default cap 3600). Defaults to the smaller of 900 and that cap. Observation never survives plugin or agent reload.' },

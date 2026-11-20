@@ -26,6 +26,8 @@ intent: 汇集本地维护的 DSH 插件源码，说明各目录、检查与安�
 
 使用 Harness 的 `plugin_manager` 安装各包目录。部分目录下的子 bundle 需要独立安装；所需宿主版本和实际检查命令见对应 README。`@local/*` 包名和 `private: true` 保留其本地安装语义，不表示 GitHub 仓库是私有的，也不发布 npm 包。
 
+插件已启用但未运行时，先用 `plugin_manager.list_bundles` 按包名查兼容性，再分别核对 Host 激活与 Client 实际加载；开关打开只表示选中。链接安装的应用与验收见 [已安装插件的小改动](dsh-progress-guard/docs/plugin-small-change.md)。
+
 ## 宿主升级检查
 
 在运行中的 DSH Shell 使用 `scripts/Invoke-DshSkillPointerCheck.ps1 -SkillFile <宿主 override 的 SKILL.md>` 检查实际安装的文档和模板入口。该检查使用安装自带的 Electron 读取 ASAR，从现行 dsh-doc 的表提取必需入口，断链或版本不一致会以非零退出。`dsh-progress-guard/devtools/scripts/check.mjs` 在发现现役宿主 override 时也执行同一检查。报告与临时测试数据放在仓库外。
@@ -34,4 +36,6 @@ intent: 汇集本地维护的 DSH 插件源码，说明各目录、检查与安�
 
 保留各包现有依赖、宿主 peer 约束和独立检查。源码、测试和可分发资源纳入 Git；依赖目录、凭据、profile、日志与运行证据留在本机。不要把本机运行凭证或客户端认证信息提交到仓库。
 
-当前验证基线为 DSH `0.2.2-rc.3`：2026-11-14 已在本机 rc.3 宿主上跑通除 `dsh-subagent-ui` 外各包的检查；同日重启后，真实客户端的会话投影缓存显示 progress-guard 与 goal-wait 均已激活，其余包未逐一核对客户端行为。DSH 只替链接安装的包解析本包或上层 `package.json` 的 `peerDependencies` 里声明过的宿主包，未声明的回落到普通 Node 解析（rc.1 上 2026-11-09 已用隔离 Host 探针实测，rc.3 相同），所以运行时导入的宿主包都要声明为 peer，包括随 `@deepseek-ai/*` 一起装进宿主的第三方包（如 zod；写进 `dependencies` 会加载一份私有副本）；根目录的 `scripts/check-source.mjs` 在 CI 里逐包核对这一点（宿主自带哪些第三方包，从各 lockfile 里 `@deepseek-ai/*` 条目的依赖推出），只查 Host 侧，Client 依赖由渲染进程的模块加载器提供。涉及宿主安装的检查需在对应 Harness 环境运行；纯函数和离线 fixture 可独立运行。
+宿主兼容范围按各 bundle 清单中的 `engines.dsh` 或 DSH peer 约束判断；验证方法见各包 README。涉及宿主的检查在对应 Harness 环境运行，纯 Node 检查不需要安装宿主依赖。
+
+链接安装的 bundle 须在 `peerDependencies` 声明运行时导入的宿主包，包括随宿主提供的第三方包（如 Zod）。CI 用 [check-source.mjs](scripts/check-source.mjs) 检查 Host 导入与声明；Client 依赖由渲染进程的模块加载器提供。
