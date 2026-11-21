@@ -27,7 +27,17 @@ jobs:
       - name: Check failure indicator build, syntax, and behavior
         working-directory: dsh-failure-status-dot
         run: node scripts/check.mjs
-      - name: Test devtools portable unit suite
+
+  devtools-tests:
+    # source-nav.test.js and slot-navigation.test.js use Windows D:/ fixture roots.
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Test devtools unit suite
         working-directory: dsh-progress-guard/devtools
         run: node --test tests/*.test.js
 
