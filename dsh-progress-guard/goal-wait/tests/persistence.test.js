@@ -7,7 +7,7 @@ import { fixture, tick, waitArgs } from './fixture.js';
 
 const root = 'D:/Codex/evidence/dsh-goal-wait-20261110/persistence';
 
-test('official JSONL persistence reopens a logged wait with official Session and Goal while keeping it disarmed', async () => {
+test('official JSONL reopen preserves the reply gate and keeps the goal disarmed', async () => {
   const storageCtx = new Context();
   await storageCtx.plugin(JsonlPersistence, { root, compression: 'none' });
   const f = await fixture({ id: `goal-wait-jsonl-${randomUUID()}` });
@@ -17,7 +17,8 @@ test('official JSONL persistence reopens a logged wait with official Session and
   try {
     f.openTurn();
     const goal = f.ctx.goals.create(f.agent, { objective: 'JSONL重开后的人工等待', maxGoalRounds: 10 });
-    const result = await f.call('wait_goal', waitArgs(goal));
+    const reply = '确认完成';
+    const result = await f.call('wait_goal', waitArgs(goal, { reply_text: reply }));
     const events = f.session.snapshotEvents();
     writeHandle = await storageCtx.sessionPersistence.create(f.session.header);
     await writeHandle.append(events);
@@ -31,10 +32,14 @@ test('official JSONL persistence reopens a logged wait with official Session and
     const recovered = await reopened.call('get_goal_wait');
     assert.equal(recovered.wait.waitId, result.wait.waitId);
     assert.equal(recovered.wait.action, '完成确认后回复继续');
+    assert.equal(recovered.wait.replyText, reply);
     assert.equal(recovered.goal.phase, 'active');
     assert.equal(recovered.goal.activation, 'disarmed');
     assert.equal(recovered.goal.revision, goal.revision);
     reopened.agent.followup(reopened.human());
+    await tick();
+    assert.equal((await reopened.call('get_goal_wait')).wait.status, 'waiting');
+    reopened.agent.followup(reopened.human(reply));
     await tick();
     assert.equal((await reopened.call('get_goal_wait')).goal.revision, goal.revision + 1);
   } finally {

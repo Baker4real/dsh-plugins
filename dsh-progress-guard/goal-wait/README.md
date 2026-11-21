@@ -1,10 +1,12 @@
 # 持续目标等待人工动作
 
-只有人工动作尚未完成时，Agent 可调用 `wait_goal`，保留目标并停止后续自动轮次。顶层直接人工回复，或本次已登记的有界 JSON 回执，可恢复原目标一次。
+只有人工动作尚未完成时，Agent 可调用 `wait_goal`，保留目标并停止后续自动轮次。符合约定的顶层直接人工回复，或本次已登记的有界 JSON 回执，可恢复原目标一次。
 
 ## 使用与授权
 
 Agent 先向用户说清剩余的一个人工动作，再读取当前目标，调用 `wait_goal`，传入 `goal_id`、`revision`、具体 `reason` 和 `action`。工具结束当前 Turn；等待期间不会定时发消息或启动 Goal round。`get_goal_wait` 返回当前官方目标、最近等待记录和回执观察状态。
+
+`reply_text` 可将恢复绑定到一条约定的纯文本回复。调用前告诉用户把约定文字作为整条消息发出。带附件、额外文字或空白差异的消息仍交给 Agent，原等待继续生效。已登记且验收通过的文件回执也可恢复等待。省略 `reply_text` 时，顶层人工回复沿用原有恢复规则。
 
 `exec.concludeTurn()` 会立即结束本轮，模型不会在工具之后再补 final 提示，因此可读的人工动作和等待原因必须在调用前告诉用户。
 
@@ -63,11 +65,11 @@ Agent 先向用户说清剩余的一个人工动作，再读取当前目标，�
 1. 读取当前 Goal 的 id 和 revision，预生成一个 UUID nonce（例如 PowerShell 的 `[guid]::NewGuid().ToString()`），选择专用目录中的唯一 `*.goal-wait.json` 路径。
 2. 将 `{ path, waitId: nonce, goalId, revision }` 写入生产者的受支持回执配置，并先启动生产者。生产者应等待人工操作；只有成功完成其校验后才原子写入 `status: "ready"`，失败不发回执。
 3. 向用户明确说明需要完成的人工动作，然后调用 `wait_goal`，同时传原 `goal_id / revision`、同一个 `wait_id: nonce`、同一个 `receipt_path`，以及有界超时。调用结束当前 Turn，之后无需再调用启动工具或发送 final。
-4. 成功回执会触发原目标的一次官方 resume；失败、超时或无匹配文件保留等待。用户直接回复始终优先。
+4. 成功回执会触发原目标的一次官方 resume；失败、超时或无匹配文件保留等待。符合回复条件的人工消息优先于并发回执。
 
 `wait_id` 仅能与 `receipt_path` 同用，必须为完整 RFC UUID（版本 1 至 8、RFC variant，拒绝空值、nil、缺段或附加字符）；省略时仍由工具生成随机 UUID。已有等待的相同 nonce 重试只返回原记录，不更换路径、期限或 goalRef；其他 nonce 不能替换它。已消费或失效 nonce 不能再次登记，大小写变体也视为同一个 nonce。消耗历史由持久投影重放，旧 revision 和 fork 历史中的 nonce 同样不可重放。
 
-本包不执行文件内代码或命令、不读取凭据、不记录文件正文。无效、未匹配、过大或暂时不可读的回执继续等待，直到有界观察过期；人工回复优先。`observation` 返回 `none / observing / expired / suspended`。只有进入等待的本次插件生命周期持有观察授权，重载后 `suspended`，即使磁盘已有匹配回执也不会唤醒。
+本包不执行文件内代码或命令、不读取凭据、不记录文件正文。无效、未匹配、过大或暂时不可读的回执继续等待，直到有界观察过期。`observation` 返回 `none / observing / expired / suspended`。只有进入等待的本次插件生命周期持有观察授权，重载后 `suspended`，即使磁盘已有匹配回执也不会唤醒。
 
 ## 安装与卸载
 

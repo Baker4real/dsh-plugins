@@ -3,9 +3,10 @@ import { z } from 'zod';
 export const SOURCE = 'local-goal-wait';
 export const REF = z.object({ id: z.string().min(1).max(200), revision: z.number().int().positive().safe() }).strict();
 export const WaitId = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+export const ReplyText = z.string().min(1).max(1000).refine(text => text.trim().length > 0);
 export const WaitRecord = z.object({
   version: z.literal(1), sessionId: z.string().min(1).max(200), waitId: WaitId, goalRef: REF,
-  reason: z.string().min(1).max(1000), action: z.string().min(1).max(1000), enteredAt: z.number().int().nonnegative().safe(),
+  reason: z.string().min(1).max(1000), action: z.string().min(1).max(1000), replyText: ReplyText.optional(), enteredAt: z.number().int().nonnegative().safe(),
   status: z.enum(['waiting', 'released', 'invalidated']), resolution: z.enum(['none', 'human', 'receipt', 'goal-changed', 'resume-failed']),
   receipt: z.object({ path: z.string().max(1000), expiresAt: z.number().int().nonnegative().safe(), status: z.enum(['observing', 'expired']) }).strict().nullable(),
 }).strict();
@@ -17,7 +18,7 @@ const State = z.object({
 export const sameRef = (a, b) => a != null && b != null && a.id === b.id && a.revision === b.revision;
 
 export const waitProjection = {
-  key: 'localGoalWait', stateVersion: 3, stateSchema: State,
+  key: 'localGoalWait', stateVersion: 4, stateSchema: State,
   init: header => ({ sessionId: header.id, goalRef: null, wait: null, usedWaitIds: [], openTurn: null, notice: null }),
   wire: {
     viewSchema: Notice.nullable(),

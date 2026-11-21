@@ -3,6 +3,38 @@ import { createScheduleEditTool, createScheduleViewTool } from "./schedule-tools
 
 export const inject = ["tools", "agents"];
 
+function createJobListTool(original) {
+  return {
+    ...original,
+    description: "List your background job IDs and statuses, with running and stopping jobs first.",
+    output: {
+      ...original.output,
+      schema: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: { id: { type: "string" }, status: { type: "string" } },
+          required: ["id", "status"],
+        },
+      },
+      render: (_args, jobs) => [{
+        type: "text",
+        text: jobs.length === 0 ? "(no background jobs)" : jobs.map(({ id, status }) => `${id} ${status}`).join("\n"),
+      }],
+    },
+    async execute(args, exec) {
+      const active = [];
+      const finished = [];
+      for (const { id, status } of await original.execute(args, exec)) {
+        const group = status === "running" || status === "stopping" ? active : finished;
+        group.push({ id, status });
+      }
+      return active.concat(finished);
+    },
+  };
+}
+
 /** Capture the originals before scoped same-name registration; wrappers never resolve themselves at execution time. */
 export function registerDailyUpdateGuards(ctx, agent, options = {}) {
   const disposers = [];
@@ -11,6 +43,7 @@ export function registerDailyUpdateGuards(ctx, agent, options = {}) {
       ["schedule_view", createScheduleViewTool],
       ["schedule_edit", createScheduleEditTool],
       ["pwsh", createPwshGuardTool],
+      ["job_list", createJobListTool],
     ]) {
       const original = ctx.tools.get(name, agent);
       if (original === undefined) continue;

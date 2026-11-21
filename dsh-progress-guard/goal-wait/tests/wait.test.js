@@ -53,3 +53,21 @@ test('only direct top-level human inbox input releases a wait once and the offic
     assert.equal(f.agent.inbox.nextTurn.filter(m => m.source.kind === 'goal').length, 1);
   } finally { await f.close(); }
 });
+
+test('reply_text rejects blank and oversized text and stays fixed for an existing wait', async () => {
+  const f = await fixture();
+  try {
+    f.openTurn();
+    const goal = f.ctx.goals.create(f.agent, { objective: '等待人工确认后继续验证', maxGoalRounds: 10 });
+    for (const reply_text of [' ', '字'.repeat(1001)]) {
+      await assert.rejects(f.call('wait_goal', waitArgs(goal, { reply_text })), { code: 'GOAL_WAIT_INVALID_REPLY' });
+    }
+    assert.equal((await f.call('get_goal_wait')).goal.activation, 'armed');
+    const accepted = await f.call('wait_goal', waitArgs(goal, { reply_text: '确认完成' }));
+    await assert.rejects(f.call('wait_goal', waitArgs(goal, { reply_text: '继续' })), { code: 'GOAL_WAIT_ALREADY_WAITING' });
+    const retried = await f.call('wait_goal', waitArgs(goal));
+    assert.equal(retried.wait.waitId, accepted.wait.waitId);
+    assert.equal(retried.wait.replyText, '确认完成');
+    assert.equal(retried.goal.activation, 'disarmed');
+  } finally { await f.close(); }
+});

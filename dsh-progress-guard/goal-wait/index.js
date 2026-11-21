@@ -3,11 +3,22 @@ import { z } from 'zod';
 import { receiptMatches, receiptPath, receiptRoots } from './receipt.js';
 import { HarnessError, createUserMessage } from '@deepseek-ai/dsh-llm';
 import { defineTool } from '@deepseek-ai/dsh-tools';
-import { SOURCE, WaitId, WaitRecord, sameRef, waitProjection } from './state.js';
+import { ReplyText, SOURCE, WaitId, WaitRecord, sameRef, waitProjection } from './state.js';
 
 export const name = 'goal-wait';
 export const inject = ['agents', 'goals', 'sessions', 'sessionProjections', 'tools'];
 const fail = (message, code = 'GOAL_WAIT_AUTHORITY_REQUIRED') => { throw new HarnessError(message, code); };
+
+function matchesHumanReply(message, wait) {
+  if (message.source.kind !== 'user') return false;
+  if (wait.replyText === undefined) return true;
+  const [block] = message.content;
+  return message.content.length === 1 && block.type === 'text' && block.text === wait.replyText;
+}
+
+function hasPendingReply(agent, wait) {
+  return [...agent.inbox.nextTurn, ...agent.inbox.nextStep].some(message => matchesHumanReply(message, wait));
+}
 
 export const Config = z.object({
   receiptRoots: z.array(z.string()).default([]),
@@ -80,9 +91,8 @@ export async function apply(ctx, config = {}) {
       }
       observation.checks += 1;
       if (receiptMatches(wait.receipt.path, wait)) {
-        // Human inputs already in either inbox own the next resumption edge.
-        const human = [...agent.inbox.nextTurn, ...agent.inbox.nextStep].some(m => m.source.kind === 'user');
-        track(release(agent, human ? 'human' : 'receipt', wait.waitId));
+        // An eligible human reply in either inbox takes precedence.
+        track(release(agent, hasPendingReply(agent, current) ? 'human' : 'receipt', wait.waitId));
         return;
       }
       observation.timer = setTimeout(poll, Math.min(pollMs, Math.max(1, wait.receipt.expiresAt - Date.now())));
@@ -123,11 +133,11 @@ export async function apply(ctx, config = {}) {
   }
   ctx.on('agent/inbox/inserted', ({ agent, message }) => {
     if (!live(agent) || message.source.kind !== 'user' || !topLevel(agent)) return;
-    if (![...agent.inbox.nextStep, ...agent.inbox.nextTurn].some(m => m.id === message.id && m.source.kind === 'user')) return;
     const wait = stateOf(agent).wait;
+    if (!wait || ![...agent.inbox.nextStep, ...agent.inbox.nextTurn].some(m => m.id === message.id && matchesHumanReply(m, wait))) return;
     const claim = releasing.get(agent);
-    if (claim && claim.waitId === wait?.waitId) claim.kind = 'human';
-    if (wait?.status === 'waiting') return track(release(agent, 'human', wait.waitId));
+    if (claim?.waitId === wait.waitId) claim.kind = 'human';
+    if (wait.status === 'waiting') return track(release(agent, 'human', wait.waitId));
   });
   const output = { schema: { type: 'json' }, render: (_args, result) => [{ type: 'text', text: JSON.stringify(result) }] };
   ctx.tools.register(defineTool({
@@ -141,6 +151,7 @@ export async function apply(ctx, config = {}) {
       revision: { type: 'integer', required: true, description: 'Exact current goal revision.' },
       reason: { type: 'string', required: true, description: 'Concrete reason that only a human action remains; 1-1000 characters.' },
       action: { type: 'string', required: true, description: 'One self-contained action for the human to take. Name what to do, where to do it and how to tell it is done. 1-1000 characters.' },
+      reply_text: { type: 'string', description: 'Optional non-blank reply text (1-1000 characters). Tell the user to send it as the entire plain-text message. Only an exact match or a verified receipt releases this wait.' },
       receipt_path: { type: 'string', description: 'Optional absolute D-drive *.goal-wait.json file in configured receiptRoots; omit for human reply only. Fixed payload is version:1, waitId, goalId, revision, status:"ready".' },
       wait_id: { type: 'string', description: 'With receipt_path only: optional pre-generated UUID nonce already frozen by the receipt producer. Omit to generate one. Never reuse a nonce for another wait.' },
       receipt_timeout_seconds: { type: 'integer', description: 'With receipt_path only: 1 to configured maxReceiptSeconds (default cap 3600). Defaults to the smaller of 900 and that cap. Observation never survives plugin or agent reload.' },
@@ -150,10 +161,12 @@ export async function apply(ctx, config = {}) {
       const goal = ctx.goals.get(agent);
       if (!goal || !sameRef(goal, { id: args.goal_id, revision: args.revision }) || goal.phase !== 'active') fail('Read the current active goal before entering a wait.', 'GOAL_WAIT_STALE_REF');
       authorized(agent, goal);
+      if (args.reply_text !== undefined && !ReplyText.safeParse(args.reply_text).success) fail('reply_text must contain 1-1000 characters and cannot be blank.', 'GOAL_WAIT_INVALID_REPLY');
       if (args.wait_id !== undefined && (!args.receipt_path || !WaitId.safeParse(args.wait_id).success)) fail('wait_id requires receipt_path and a strict UUID nonce.', 'GOAL_WAIT_INVALID_RECEIPT');
       const state = stateOf(agent);
       if (state.wait?.status === 'waiting' && sameRef(state.wait.goalRef, goal)) {
         if (args.wait_id !== undefined && args.wait_id.toLowerCase() !== state.wait.waitId.toLowerCase()) fail('An existing wait cannot be replaced by another nonce.', 'GOAL_WAIT_ALREADY_WAITING');
+        if (args.reply_text !== undefined && args.reply_text !== state.wait.replyText) fail('An existing wait cannot change its reply text.', 'GOAL_WAIT_ALREADY_WAITING');
         waiting.set(agent, state.wait.waitId);
         exec.concludeTurn();
         return value(agent);
@@ -165,17 +178,19 @@ export async function apply(ctx, config = {}) {
       if (!Number.isSafeInteger(seconds) || seconds < 1 || seconds > maxSeconds) fail('Receipt timeout exceeds the configured bound.', 'GOAL_WAIT_INVALID_RECEIPT');
       const now = Date.now();
       const receipt = args.receipt_path ? { path: receiptPath(args.receipt_path, roots), expiresAt: now + seconds * 1000, status: 'observing' } : null;
-      const wait = WaitRecord.parse({ version: 1, sessionId: agent.id, waitId: args.wait_id ?? randomUUID(), goalRef: { id: goal.id, revision: goal.revision }, reason: args.reason.trim(), action: args.action.trim(), enteredAt: now, status: 'waiting', resolution: 'none', receipt });
+      const wait = WaitRecord.parse({
+        version: 1, sessionId: agent.id, waitId: args.wait_id ?? randomUUID(), goalRef: { id: goal.id, revision: goal.revision },
+        reason: args.reason.trim(), action: args.action.trim(), enteredAt: now, status: 'waiting', resolution: 'none', receipt,
+        ...(args.reply_text === undefined ? {} : { replyText: args.reply_text }),
+      });
       waiting.set(agent, wait.waitId);
       ctx.goals.disarm(agent);
       record(agent, wait);
       await ctx.sessions.flush(agent.session);
       if (live(agent) && stateOf(agent).wait?.status === 'waiting' && sameRef(ctx.goals.get(agent), wait.goalRef)) {
-        // A human may arrive after the model asks for action but before this
-        // wait exists. Only unclaimed, currently pending input is considered;
-        // the original task message has already left the inbox.
-        const pendingHuman = [...agent.inbox.nextTurn, ...agent.inbox.nextStep].some(message => message.source.kind === 'user');
-        if (pendingHuman) await track(release(agent, 'human', wait.waitId));
+        // The human may reply before the wait exists. Only unclaimed input
+        // can match; the original task message has already left the inbox.
+        if (hasPendingReply(agent, wait)) await track(release(agent, 'human', wait.waitId));
         else if (receipt) observe(agent, wait);
       }
       exec.concludeTurn();

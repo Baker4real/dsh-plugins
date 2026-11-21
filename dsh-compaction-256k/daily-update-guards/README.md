@@ -1,6 +1,6 @@
 # Daily update guards
 
-独立 Host bundle，包装宿主已有 `schedule_view`、`schedule_edit` 和 `pwsh`，不重新实现 Schedule 服务或 PowerShell 执行器。`agent/created` 在预设挂载完成后触发，插件先在 Agent scope 捕获原 definition，再以同名 scoped registration 覆盖；包装只闭包调用捕获的原 definition，避免执行时递归 lookup。新建或恢复的 Agent 会应用这些包装；插件加载时也通过 `agents.list()` 包装当前已存活的 Agent，因此主会话无需等待重建。
+独立 Host bundle，包装宿主已有的 `schedule_view`、`schedule_edit`、`pwsh` 和 `job_list`。`agent/created` 在预设挂载完成后触发，插件先在 Agent scope 捕获原 definition，再以同名 scoped registration 覆盖；包装只闭包调用捕获的原 definition，避免执行时递归 lookup。新建或恢复的 Agent 会应用这些包装；插件加载时也通过 `agents.list()` 包装当前已存活的 Agent，因此主会话无需等待重建。
 
 ## Schedule 投影与 canonical prompt
 
@@ -13,6 +13,10 @@ D:/agents/projects/统一环境/docs/automation/daily-update-prompt.md
 ```
 
 `schedule_edit` 可用 `promptFile` 从该文件读取新 prompt。此参数只接受上述精确 task id、精确路径和 `action: "update"`，不能与内联 `prompt` 同用；其他 id、路径形式或 delete 均在读取文件及调用原工具前拒绝。`full: true` 也可与合法 `promptFile` 同用，此时只关闭结果投影，不改变 prompt 来源。
+
+## 后台任务列表
+
+`job_list` 复用原工具的会话作用域，只在结果中保留 `id` 和 `status`，将 `running` 和 `stopping` 排在前面。使用 `job_output` 和任务 ID 读取详情。
 
 ## PowerShell guard
 

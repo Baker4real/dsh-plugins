@@ -19,7 +19,7 @@ if (!process.versions.electron) {
   mkdirSync(root, { recursive: true });
   const result = { status: 'running', version: manifest.version, sourceEntry: manifest.exports['.'], noRegisterHooks: true, scope: 'Native ESM public export and exact cold-entry source closure; Host SDK bare-import aliases still require actual activation.', resolved: {} };
   try {
-    assert.equal(manifest.version, '1.0.2');
+    assert.equal(manifest.version, '1.1.0');
     assert.equal(manifest.exports['.'], './index-v2.js');
     const profile = createRequire('C:/Users/WINDOWS/.dsh/profiles/desktop/package.json');
     const host = createRequire('D:/Users/WINDOWS/AppData/Local/Programs/DeepSeek Harness/resources/app.asar/dsh/package.json');
