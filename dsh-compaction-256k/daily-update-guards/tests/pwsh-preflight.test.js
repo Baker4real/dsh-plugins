@@ -11,6 +11,9 @@ for (const [name, command, reason] of [
   ['label fields', "Write-Output 'PRIVATE-COMMAND-SENTINEL'; gh label list --json name,description", 'bare-comma-array'],
   ['issue fields', 'gh issue list --json number,title,labels,url', 'bare-comma-array'],
   ['comments mode', "gh issue view 186 --comments --json 'body,comments'", 'comments-json-mutually-exclusive'],
+  ['single-quoted escaped quote python -c', `python -c 'print(\\"PRIVATE-COMMAND-SENTINEL\\")'`, 'single-quoted-backslash-quote'],
+  ['multiline python -c', "python -c 'import sys\nprint(\"PRIVATE-COMMAND-SENTINEL\")'", 'multiline-inline-python'],
+  ['unguarded gh api pipe write', `gh api 'repos/a/b/contents/x.go' --jq '.content' | python -c "import sys; open('PRIVATE-COMMAND-SENTINEL','wb').write(sys.stdin.read().encode())"`, 'unguarded-pipe-write'],
 ]) {
   test(`native PowerShell preflight rejects invalid ${name} before the original tool`, windows, async () => {
     const calls = [];

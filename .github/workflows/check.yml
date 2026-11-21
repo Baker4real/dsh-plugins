@@ -27,6 +27,27 @@ jobs:
       - name: Check failure indicator build, syntax, and behavior
         working-directory: dsh-failure-status-dot
         run: node scripts/check.mjs
+      - name: Test devtools portable unit suite
+        working-directory: dsh-progress-guard/devtools
+        run: node --test tests/*.test.js
+
+  agent-reliability-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: dsh-compaction-256k/agent-reliability
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.5
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check
 
   subagent-checks:
     runs-on: ubuntu-latest

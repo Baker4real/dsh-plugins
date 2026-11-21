@@ -23,7 +23,7 @@ Node.js ESM、Cordis 插件、YAML composition、DSH compaction API、Node 内�
 - `package.json`：源码直接 import 的宿主包（`@deepseek-ai/*`，以及随它们装进宿主的第三方包，如 zod）写进 `peerDependencies`，DSH 运行时据此改用宿主自带的那一份；同版本的 `devDependencies`、`node_modules/` 和 pnpm lockfile 只供本地测试。写进 `dependencies` 会让插件加载私有副本，引擎不再继承宿主的 `BasicCompactionEngine`（证据：`D:/agents/run-evidence/dsh-compaction-256k/20261109-peer-dependencies/`）；仓库根的 `scripts/check-source.mjs` 在 CI 里拦这种写法。
 - `context-meter/`：独立 Client/Host bundle，以 `compactionSettings` 投影和 `contextPressure` 在输入框 dock 显示压缩剩余百分比；需单独安装该目录。
 - `daily-update-guards/`：独立 Host bundle，包装每日更新 Schedule 与高风险 PowerShell 工具；需单独安装该目录，现役 Agent 与新 Agent 都要验收。
-- `agent-reliability/`：来源校验、Exa 搜索及网页/GenUI 读取扩展；独立安装，先跑子包检查。宿主验收和回滚见 `agent-reliability/README.md`。
+- `agent-reliability/`：来源校验、Exa 搜索、网页/GenUI 读取与验证、技能去重、显式 `.git` 发现、提问守卫与截断 SSE 重试归类；独立安装，先跑子包 `pnpm run check`（已接入仓库 CI 与 pre-commit）。宿主验收和回滚见 `agent-reliability/README.md`。
 - `tests/`：行为回归。
 - `smoke/`：真实新会话的引擎、投影和工具验收；`ui-smoke.mjs` 只读检查已鉴权会话的实际 DOM，`opener/` 是 Desktop 的一次性官方鉴权 handoff，不输出令牌。
 

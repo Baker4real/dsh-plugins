@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+set -eu
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+NODE_BIN="node"
+
+if [ -n "${LOCALAPPDATA:-}" ]; then
+  DSH_NODE="$LOCALAPPDATA/Programs/DeepSeek Harness/resources/runtime/primary-runtime/dependencies/node/bin/node.exe"
+  if [ -x "$DSH_NODE" ]; then
+    NODE_BIN="$DSH_NODE"
+  fi
+fi
+
+if [ "$NODE_BIN" = "node" ] && ! command -v node >/dev/null 2>&1 && [ -x "/d/Codex/tools/bin/node.exe" ]; then
+  NODE_BIN="/d/Codex/tools/bin/node.exe"
+fi
+
+exec "$NODE_BIN" "$REPO_ROOT/scripts/pre-commit.mjs"

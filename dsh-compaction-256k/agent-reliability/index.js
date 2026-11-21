@@ -8,6 +8,7 @@ import { completeSkillResult, createSkillReloadTool, projectLoadedSkill } from '
 import { guardAskUserQuestion } from './question-guard.js';
 import { explicitGitGlob, recoverExplicitGitGlob, projectGitGlob } from './glob-tools.js';
 import { projectGenuiValidation } from './genui-validation.js';
+import { recoverTruncatedSseStream } from './stream-recovery.js';
 
 export const inject = ['tools', 'agents', 'sessionProjections', 'cordisInspect', 'subprocess', 'workingDirectory'];
 const stateSchema = z.object({ calls: z.record(z.string(), z.string()), sources: z.record(z.string(), z.string()), turn: z.number().int(), repairRequested: z.boolean() });
@@ -17,7 +18,7 @@ export async function apply(ctx) {
   const health = initialSearchHealth();
   const installed = new Map();
   const repairs = new Map();
-  const metrics = { checkedStreams: 0, blockedCitations: 0, repairRequests: 0, questionRejections: 0 };
+  const metrics = { checkedStreams: 0, blockedCitations: 0, repairRequests: 0, questionRejections: 0, reclassifiedSseErrors: 0 };
   ctx.effect(() => ctx.tools.guard(exec => {
     const reason = guardAskUserQuestion(exec);
     if (reason) metrics.questionRejections++;
@@ -120,14 +121,15 @@ export async function apply(ctx) {
   });
 
   ctx.on('llm/stream', async function* (options, next) {
-    if (!isAgentLoopRequest(options)) { yield* next(); return; }
+    const recovered = recoverTruncatedSseStream(next(), options?.signal, () => { metrics.reclassifiedSseErrors++; });
+    if (!isAgentLoopRequest(options)) { yield* recovered; return; }
     const agent = options.sessionId ? ctx.agents.get(options.sessionId) : undefined;
-    if (!agent) { yield* next(); return; }
+    if (!agent) { yield* recovered; return; }
     const state = registry.stateOf(agent.session);
     metrics.checkedStreams++;
     let rejected = 0, finish;
     async function* observeFinish() {
-      for await (const chunk of next()) {
+      for await (const chunk of recovered) {
         if (chunk.type === 'finish') finish = chunk.reason?.kind;
         yield chunk;
       }
@@ -151,7 +153,7 @@ export async function apply(ctx) {
       const agent = input.sessionId ? ctx.agents.get(input.sessionId) : undefined;
       const state = agent ? registry.stateOf(agent.session) : undefined;
       return {
-        version: '1.0.4', citationStreamGuard: true, questionSchemaGuard: true, globExplicitGit: true, genuiValidationGuard: true, activeAgents: installed.size,
+        version: '1.0.5', citationStreamGuard: true, questionSchemaGuard: true, globExplicitGit: true, genuiValidationGuard: true, truncatedSseRetryGuard: true, activeAgents: installed.size,
         wrappers: input.sessionId ? installed.get(input.sessionId)?.wrapped ?? [] : [...new Set([...installed.values()].flatMap(item => item.wrapped))],
         toolGuards: agent ? {
           glob: Boolean(installed.get(agent.id)?.nativeGlob) && agent.ctx.tools.get('glob', agent) === installed.get(agent.id)?.nativeGlob,

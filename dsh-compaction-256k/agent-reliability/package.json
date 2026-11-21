@@ -1,14 +1,14 @@
 {
   "name": "@local/dsh-agent-reliability",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "private": true,
   "type": "module",
-  "description": "来源引用校验、已配置搜索通道健康检查和按需文档读取。",
+  "description": "来源引用校验、已配置搜索通道健康检查、按需文档读取和截断 SSE 重试归类。",
   "engines": { "dsh": "^0.2.2-rc.3", "node": ">=24" },
-  "scripts": { "check": "node --check index.js && node --check citations.js && node --check search.js && node --check content-tools.js && node --check skill-loading.js && node --check question-guard.js && node --check glob-tools.js && node --check genui-validation.js && node --test tests/*.test.js", "test": "node --test tests/*.test.js" },
+  "scripts": { "check": "node --check index.js && node --check citations.js && node --check search.js && node --check content-tools.js && node --check skill-loading.js && node --check question-guard.js && node --check glob-tools.js && node --check genui-validation.js && node --check stream-recovery.js && node --test tests/*.test.js", "test": "node --test tests/*.test.js" },
   "peerDependencies": { "@deepseek-ai/dsh-llm": "^0.2.2-rc.1", "@deepseek-ai/dsh-tool-fs-search": "^0.2.2-rc.3", "zod": "^4.4.3" },
   "devDependencies": { "@deepseek-ai/dsh-llm": "0.2.2-rc.3", "@deepseek-ai/cordis": "4.1.0", "@deepseek-ai/dsh-session": "0.2.2-rc.3", "@deepseek-ai/dsh-session-projection": "0.2.2-rc.3", "@deepseek-ai/dsh-system-prompt": "0.2.2-rc.3", "@deepseek-ai/dsh-tools": "0.2.2-rc.3", "@deepseek-ai/dsh-tool-fs-search": "0.2.2-rc.3", "zod": "4.6.6" },
   "exports": { ".": "./index.js", "./locale/*.json": "./locale/*.json", "./icon": "./icon.svg" },
-  "files": ["index.js", "citations.js", "content-tools.js", "search.js", "skill-loading.js", "question-guard.js", "glob-tools.js", "genui-validation.js", "genui-core.md", "cordis.patch.yml", "locale/*.json", "icon.svg", "README.md"],
+  "files": ["index.js", "citations.js", "content-tools.js", "search.js", "skill-loading.js", "question-guard.js", "glob-tools.js", "genui-validation.js", "stream-recovery.js", "genui-core.md", "cordis.patch.yml", "locale/*.json", "icon.svg", "README.md"],
   "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
 }

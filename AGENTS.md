@@ -13,6 +13,9 @@
 
 ## 操作
 
-先进入目标包读取其规则并运行已有检查。安装、移除和路径变更使用宿主 `plugin_manager`，根据 application/nextStep 验证；仓库根本身不是 bundle。
+先进入目标包读取其规则并运行已有检查；评审阶段按 [CODING_STANDARDS.md](CODING_STANDARDS.md) 把关跨文件与插件边界判断。安装、移除和路径变更使用宿主 `plugin_manager`，根据 application/nextStep 验证；仓库根本身不是 bundle。
+
+- 本地提交前护栏位于 `.githooks/pre-commit`（调用 `scripts/pre-commit.mjs`，启用方式：`git config core.hooksPath .githooks`），按改动目录自动跑 `scripts/check-source.mjs` 与受影响包单测。
+- 对真实 DSH `app.asar` 编写离线 `AgentLoop` 端到端夹具时，参考 `dsh-progress-guard/goal-wait/tests/agent-loop.test.js`（所需最小服务：`dsh-llm`、`dsh-llm-retry`、`dsh-tools`、`dsh-tool-executor-native`、`dsh-agent-loop`）；单包兼容预检使用 `D:/Codex/tools/dsh-maint/Invoke-DshEvalCompat.ps1`。
 
 公开 Git 只收源码、测试、文档、锁文件和分发资源。凭据、依赖、profile 和本机运行证据保持在仓库外。子代理工作台的构建入口仍在其包目录执行，产物与源码一起提交。

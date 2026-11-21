@@ -45,9 +45,29 @@ export function hasUnsafeCheckedPowerShellCommand(command) {
   return false;
 }
 
+const PYTHON_AND_PIPE_FIXES = {
+  'single-quoted-backslash-quote': "修法：PowerShell 单引号串不转义 \\\"；改用 @' ... '@ | python - 或写入 .py 文件后执行。",
+  'multiline-inline-python': "修法：多行 Python 不要塞进 python -c 引号串；改用 PowerShell here-string（@' ... '@ | python -）或写入 .py 文件。",
+  'unguarded-pipe-write': "修法：gh api 失败时管道右侧的 python 仍会写出空文件；改用 gh api -H 'Accept: application/vnd.github.raw' ... > file 或先检查 $LASTEXITCODE 再落盘。",
+};
+
+function needsNativePreflight(command) {
+  if (typeof command !== 'string') return false;
+  if (/\bgh(?:\.exe)?\b/iu.test(command) && /--json\b/iu.test(command)) return true;
+  if (/\b(?:python3?|py)(?:\.exe)?\b/iu.test(command) && /(?:^|\s)-c(?:\s|$)/u.test(command)) return true;
+  if (/\bgh(?:\.exe)?\s+api\b/iu.test(command) && /\|/u.test(command)) return true;
+  return false;
+}
+
+function formatDiagnostic(diagnostic) {
+  const reason = /\breason=([\w-]+)/u.exec(diagnostic)?.[1];
+  const fix = reason && Object.hasOwn(PYTHON_AND_PIPE_FIXES, reason) ? PYTHON_AND_PIPE_FIXES[reason] : undefined;
+  return `PowerShell 参数预检拒绝了命令：${diagnostic}${fix ? `\n${fix}` : ''}`;
+}
+
 async function checkNativeArguments(command, signal) {
   // The existing parser owns native-argument syntax. CheckOnly parses text and never runs it.
-  if (process.platform !== 'win32' || typeof command !== 'string' || !/\bgh(?:\.exe)?\b/iu.test(command) || !/--json\b/iu.test(command)) return;
+  if (process.platform !== 'win32' || !needsNativePreflight(command)) return;
   signal?.throwIfAborted();
   try {
     await runFile('pwsh', ['-NoProfile', '-NonInteractive', '-File', PREFLIGHT_FILE, '-CommandText', command, '-CheckOnly'], {
@@ -58,7 +78,7 @@ async function checkNativeArguments(command, signal) {
     // execFile's message contains its argv, which can include private command arguments. Never expose it.
     const diagnostic = String(error.stderr ?? '').split(/\r?\n/).find(line => /^CheckedPowerShell (?:native-argument-error|syntax-error|parameter-error|input-error|regex-error)\b/.test(line));
     const failure = new Error(diagnostic
-      ? `PowerShell 参数预检拒绝了命令：${diagnostic}`
+      ? formatDiagnostic(diagnostic)
       : 'PowerShell 参数预检不可用，命令尚未执行；请检查受检入口与 PowerShell Core 7。');
     failure.name = 'PowerShellPreflightError';
     failure.code = diagnostic ? 'PWSH_PREFLIGHT_REJECTED' : 'PWSH_PREFLIGHT_UNAVAILABLE';
