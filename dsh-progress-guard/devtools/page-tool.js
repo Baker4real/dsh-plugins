@@ -17,15 +17,49 @@ const properties = {
   expectNoRenderErrors: { type: 'boolean', description: 'For inspect: require the current session to have no reported RenderBoundary errors.' },
 };
 
+const outputSchema = {
+  type: 'object',
+  properties: {
+    verification: {
+      type: 'object',
+      properties: {
+        moduleLoaded: { oneOf: [{ type: 'boolean' }, { type: 'null' }], description: 'Whether the requested Client manifest module is materialized. Null when unrequested or unknown.' },
+        elementMounted: { oneOf: [{ type: 'boolean' }, { type: 'null' }], description: 'Whether one or more elements match the selector. Null when unrequested or unknown.' },
+        elementVisibleInViewport: { oneOf: [{ type: 'boolean' }, { type: 'null' }], description: 'Viewport visibility of the unique match, independent of hit testing. Null without a unique observation.' },
+        passed: { type: 'boolean', description: 'Final result of the requested page assertions.' },
+      },
+      additionalProperties: true,
+    },
+  },
+  additionalProperties: true,
+};
+
 export function pageVerification(result, args, advertised) {
-  const visible = result.element?.status === 'found' && result.element.visible === true && result.element.hitTarget !== false;
-  const absent = result.element?.status === 'not-found' || (result.element?.status === 'found' && result.element.visible === false);
-  const expected = args.expectedVisible ?? true;
-  const matchesVisibility = expected ? visible : absent;
-  const element = args.selector === undefined ? 'not-requested' : !matchesVisibility || (args.expectedExpanded !== undefined && result.element?.ariaExpanded !== args.expectedExpanded) ? 'failed' : 'passed';
-  const module = args.packageName === undefined ? 'not-requested' : !advertised || result.modules?.find(row => row.id === args.packageName)?.rev !== advertised.rev ? 'failed' : 'passed';
+  const observedElement = args.selector === undefined ? undefined : result.element;
+  const status = observedElement?.status;
+  const elementMounted = status === 'found' || status === 'ambiguous' ? true : status === 'not-found' ? false : null;
+  const elementVisibleInViewport = status === 'found' ? observedElement.visible ?? null : null;
+  const visibleAndHitTarget = elementVisibleInViewport === true && observedElement.hitTarget !== false;
+  const notVisible = status === 'not-found' || elementVisibleInViewport === false;
+  const matchesVisibility = (args.expectedVisible ?? true) ? visibleAndHitTarget : notVisible;
+  const matchesExpanded = args.expectedExpanded === undefined || observedElement?.ariaExpanded === args.expectedExpanded;
+  const element = args.selector === undefined ? 'not-requested' : matchesVisibility && matchesExpanded ? 'passed' : 'failed';
+
+  const observedModule = args.packageName === undefined ? undefined : result.modules?.find(row => row.id === args.packageName);
+  const module = args.packageName === undefined ? 'not-requested' : !advertised || observedModule?.rev !== advertised.rev ? 'failed' : 'passed';
   const renderErrors = args.expectNoRenderErrors !== true ? 'not-requested' : Array.isArray(result.renderErrors) && result.renderErrors.length === 0 ? 'passed' : 'failed';
-  return { pageReady: result.page?.ready === true, element, matchesAdvertisedModule: module, renderErrors, passed: result.page?.ready === true && element !== 'failed' && module !== 'failed' && renderErrors !== 'failed', sourceBuildVerified: false };
+  const pageReady = result.page?.ready === true;
+  return {
+    pageReady,
+    moduleLoaded: observedModule?.loaded ?? null,
+    matchesAdvertisedModule: module,
+    elementMounted,
+    elementVisibleInViewport,
+    element,
+    renderErrors,
+    passed: pageReady && element !== 'failed' && module !== 'failed' && renderErrors !== 'failed',
+    sourceBuildVerified: false,
+  };
 }
 
 export function validatePageActionDeclaration(args) {
@@ -40,7 +74,7 @@ export function createPageTool(ctx, bridge) {
     name: 'dsh_page',
     description: 'Inspect or act on the exact Harness page for a Session. Click uses a fresh element token and verifies the resulting state on that same page. Reload verifies a new document. No native keys, coordinates or new pages.',
     parameters: { type: 'object', properties, required: ['action', 'url'], additionalProperties: false },
-    output: { schema: { type: 'object', additionalProperties: true }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
+    output: { schema: outputSchema, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
     timeoutMs: 40000,
     isConcurrencySafe: args => args?.action === 'inspect',
     async execute(args, exec) {

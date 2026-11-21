@@ -240,7 +240,7 @@ window.__ModuleLoader__.load({
         ctx.inject(['cordisInspect'], inspectCtx => inspectCtx.effect(() => inspectCtx.cordisInspect.register({
           manifest: {
             id: 'Page', description: 'Read-only inspection bound to the exact page URL and active main Session. A mismatch returns only that page origin and pathname.',
-            methods: [{ name: 'inspect', description: 'Read page and module generations plus optional selector visibility and aria-expanded, without DOM text or navigation.', inputSchema: { type: 'object', properties: { url: { type: 'string', description: 'Current GUI origin and pathname, without query or fragment.' }, sessionId: { type: 'string', description: 'Active main Session id.' }, active: { type: 'boolean', description: 'Inspect the current active main Session in one atomic snapshot; inspect-only and incompatible with sessionId.' }, pageId: { type: 'string' }, documentId: { type: 'string' }, graphRevision: { type: 'string' }, packageName: { type: 'string' }, selector: { type: 'string', description: 'One CSS selector, at most 256 characters.' }, requireMatch: { type: 'boolean', description: 'Reject nonmatching pages so the Host can accept a different connected page. Defaults to false for path diagnostics.' } }, required: ['url'], additionalProperties: false }, outputSchema: { description: 'Matched page identity, actual module revisions and optional structural element state.' } }],
+            methods: [{ name: 'inspect', description: 'Read page and module generations plus optional selector visibility and aria-expanded, without DOM text or navigation.', inputSchema: { type: 'object', properties: { url: { type: 'string', description: 'Current GUI origin and pathname, without query or fragment.' }, sessionId: { type: 'string', description: 'Active main Session id.' }, active: { type: 'boolean', description: 'Inspect the current active main Session in one atomic snapshot; inspect-only and incompatible with sessionId.' }, pageId: { type: 'string' }, documentId: { type: 'string' }, graphRevision: { type: 'string' }, packageName: { type: 'string' }, selector: { type: 'string', description: 'One CSS selector, at most 256 characters.' }, requireMatch: { type: 'boolean', description: 'Reject nonmatching pages so the Host can accept a different connected page. Defaults to false for path diagnostics.' } }, required: ['url'], additionalProperties: false }, outputSchema: { description: 'Matched page identity, Client manifest revisions, materialization of the requested module when known, and optional structural element state.' } }],
           },
           async query(method, input = {}) {
             if (method !== 'inspect') throw new Error('Unknown Page method');
@@ -263,7 +263,10 @@ window.__ModuleLoader__.load({
             }
             if (input.packageName !== undefined && (typeof input.packageName !== 'string' || !/^[A-Za-z0-9@_./-]{1,214}$/u.test(input.packageName))) throw new Error('INVALID_PACKAGE_NAME');
             const selected = result.modules.filter(row => packageMatches(row.id, input.packageName));
-            return { status: result.page.ready ? 'ready' : 'not-ready', page: result.page, modules: selected.slice(0, 25), modulesTruncated: selected.length > 25, renderErrors: [...renderErrors.values()].filter(row => row.sessionId === result.page.sessionId), ...(input.selector === undefined ? {} : { element: page.elementState(input.selector) }) };
+            const modules = selected.slice(0, 25).map(row => row.id === input.packageName
+              ? { ...row, loaded: ctx.get('modules')?.loadCache?.has(row.id) ?? null }
+              : row);
+            return { status: result.page.ready ? 'ready' : 'not-ready', page: result.page, modules, modulesTruncated: selected.length > 25, renderErrors: [...renderErrors.values()].filter(row => row.sessionId === result.page.sessionId), ...(input.selector === undefined ? {} : { element: page.elementState(input.selector) }) };
           },
         }), 'devtools: identity-bound Page inspection'));
         ctx.effect(() => ctx.slots.onEntryError((key, entry, error) => {

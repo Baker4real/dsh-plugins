@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const desktop = 'D:/Users/WINDOWS/AppData/Local/Programs/DeepSeek Harness/DeepSeek Harness.exe';
-const bound = error => String(error?.message ?? error).slice(-6000);
+const bound = error => String(error?.message ?? error).split(/\r?\n/, 1)[0].slice(0, 320);
 export async function runProjectChecks({ runtime, report, dshRoot } = {}) {
   let result;
   const executable = resolve(runtime || process.env.DSH_DESKTOP_EXE || (process.versions.electron ? process.execPath : desktop));

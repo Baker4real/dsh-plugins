@@ -1,17 +1,19 @@
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { checkManagedChatPatch } from './chat-patch-gate.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const installed = process.env.DSH_GOAL_WAIT_DSH_ROOT || 'D:/Users/WINDOWS/AppData/Local/Programs/DeepSeek Harness/resources/app.asar/dsh';
+const managedRoot = 'D:/Users/WINDOWS/AppData/Local/Programs/DeepSeek Harness/resources/app.asar/dsh';
+const installed = process.env.DSH_GOAL_WAIT_DSH_ROOT || managedRoot;
 // Host releases this package was verified against; engines.dsh must list exactly these.
 const verifiedHostVersions = ['0.2.2-rc.1', '0.2.2-rc.2', '0.2.2-rc.3', '0.2.2-rc.5'];
-// These assertions target the separately managed local Chat patch.
 const chatPatchTests = ['chat-fold.test.js', 'chat-final-response-marker.test.js'];
-const chatPatchHostVersion = '0.2.2-rc.3';
+const usesManagedRoot = resolve(installed).toLowerCase() === resolve(managedRoot).toLowerCase();
+const chatMode = process.env.DSH_GOAL_WAIT_CHAT_PACKAGE ? 'explicit-package' : usesManagedRoot ? 'managed' : 'not-checked';
 const checks = [];
 const report = { schemaVersion: 1, status: 'failed', packageName: '@local/dsh-goal-wait', checks };
 const verbose = process.argv.includes('--full-diagnostics');
@@ -70,6 +72,9 @@ function main() {
   let hostVersion;
   if (!stage('installed-runtime', () => {
     assert.ok(process.versions.electron, 'Checks must run in installed Electron Node mode.');
+    if (chatMode === 'managed' && !existsSync(installed)) {
+      throw new Error(`Managed DSH root is unavailable: ${installed}. Check the Desktop installation path; use --dsh-root only for another Host or fixture.`);
+    }
     const require = createRequire(pathToFileURL(`${installed}/package.json`));
     const versions = {};
     for (const name of ['@deepseek-ai/dsh-goal', '@deepseek-ai/dsh-goal-round-driver', '@deepseek-ai/dsh-tools', '@deepseek-ai/dsh-session', '@deepseek-ai/dsh-session-projection', '@deepseek-ai/dsh-agent-loop']) {
@@ -81,6 +86,9 @@ function main() {
     hostVersion = versions['@deepseek-ai/dsh-goal'];
     return { electron: process.versions.electron, node: process.versions.node, versions };
   })) return;
+  report.localChatPatch = chatMode;
+  if (chatMode === 'managed' && !stage('managed-chat-patch', () =>
+    checkManagedChatPatch({ asarPath: resolve(installed, '..'), hostVersion }))) return;
   let files;
   if (!stage('manifest-and-resources', () => {
     const manifest = JSON.parse(text('package.json'));
@@ -94,7 +102,7 @@ function main() {
     assert.ok(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-chat'));
     assert.equal(manifest.dependencies, undefined, 'Reuse Host packages; no package installation is needed.');
     files = new Set(manifest.files.flatMap(expand));
-    for (const required of ['index.js', 'state.js', 'receipt.js', 'cordis.patch.yml', 'README.md', 'icon.svg', 'locale/en.json', 'locale/zh.json', 'scripts/check.mjs', 'scripts/check-runtime.mjs', 'scripts/runtime-loader.mjs']) assert.ok(files.has(required), `Missing resource: ${required}`);
+    for (const required of ['index.js', 'state.js', 'receipt.js', 'cordis.patch.yml', 'README.md', 'icon.svg', 'locale/en.json', 'locale/zh.json', 'scripts/check.mjs', 'scripts/check-runtime.mjs', 'scripts/chat-patch-gate.mjs', 'scripts/runtime-loader.mjs']) assert.ok(files.has(required), `Missing resource: ${required}`);
     for (const [key, target] of Object.entries(manifest.exports)) for (const file of expand(target)) assert.ok(files.has(file), `Export missing from files: ${key}`);
     assert.equal(manifest.exports['.'], './index-v2.js');
     assert.equal(manifest.exports['./icon'], './icon.svg');
@@ -153,11 +161,8 @@ function main() {
     assert.ok(tests.length >= 5);
     return { ...runTests(tests), coverage: ['official AgentLoop/native executor', 'official Goal/Session/round driver', 'official JSONL reopen', 'direct-human authority and one-shot resume', 'revision/unload/reload fences', 'bounded receipt expiry and deduplication'] };
   }, details => !details.failedRun)) return;
-  if (hostVersion === chatPatchHostVersion || process.env.DSH_GOAL_WAIT_CHAT_PACKAGE) {
-    if (!stage('local-chat-patch-tests', () => runTests(chatPatchTests), details => !details.failedRun)) return;
-  } else {
-    report.localChatPatch = 'not-checked';
-  }
+  if (chatMode !== 'not-checked' && !stage('local-chat-patch-tests', () => runTests(chatPatchTests),
+    details => !details.failedRun && details.passed > 0 && details.skipped === 0 && details.todo === 0)) return;
   report.status = 'passed';
 }
 main();

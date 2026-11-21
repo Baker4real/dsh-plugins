@@ -2,12 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { createPageTool } from '../page-tool.js';
+
+function inspectPage(provider, options) {
+  const tool = createPageTool({
+    cordisInspect: { query: (_platform, _provider, method, input) => provider.query(method, input) },
+    clientModules: { graph: () => ({ entries: [{ id: '@fixture/ui', rev: 'revision-a' }] }) },
+  }, {});
+  return tool.execute({ action: 'inspect', url: 'http://127.0.0.1:7692/', packageName: '@fixture/ui', ...options }, { agent: { id: 'session-task' } });
+}
 
 async function boot(location = { origin: 'http://127.0.0.1:7692', pathname: '/', href: 'http://127.0.0.1:7692/?token=SYNTHETIC_SECRET' }) {
   let declaration;
   const registrations = [];
   const listeners = new Map();
-  const state = { sessionId: 'session-task', activePanelId: null, revision: 'revision-a', expanded: 'false', left: 0, opacity: '1' };
+  const state = { sessionId: 'session-task', activePanelId: null, revision: 'revision-a', expanded: 'false', left: 0, opacity: '1', ambiguous: false, covered: false };
   const element = { getBoundingClientRect: () => ({ left: state.left, top: 0, width: 20, height: 20 }), getAttribute: name => name === 'aria-expanded' ? state.expanded : null };
   const sandbox = {
     window: {
@@ -16,10 +25,19 @@ async function boot(location = { origin: 'http://127.0.0.1:7692', pathname: '/',
       addEventListener(name, listener) { listeners.set(name, listener); },
       removeEventListener(name) { listeners.delete(name); },
     },
-    document: { readyState: 'complete', querySelectorAll: selector => selector === '.collapse' ? [element] : [] },
+    document: {
+      readyState: 'complete',
+      querySelectorAll: selector => selector === '.collapse' ? (state.ambiguous ? [element, {}] : [element]) : [],
+      elementFromPoint: x => x >= 0 && x < 640 ? (state.covered ? {} : element) : null,
+    },
     TextEncoder, Uint8Array, getComputedStyle: () => ({ display: 'block', visibility: 'visible', opacity: state.opacity }),
   };
-  const modules = { manifest: { get modules() { return [{ id: '@fixture/ui', rev: state.revision }]; } }, entries: { state: { getSnapshot: () => ({ syncing: false, failures: [] }) } } };
+  const loadCache = new Map([['@fixture/ui', { id: '@fixture/ui' }]]);
+  const modules = {
+    manifest: { get modules() { return [{ id: '@fixture/ui', rev: state.revision }]; } },
+    entries: { state: { getSnapshot: () => ({ syncing: false, failures: [] }) } },
+    loadCache,
+  };
   const sessions = { list: { getSnapshot: () => ({ byId: { [state.sessionId]: { id: state.sessionId, retainedBy: { mainView: 1 } } } }) } };
   const ctx = {
     get(key) { return ({ modules, sessions, layout: { panelInfo: { getSnapshot: () => ({ activePanelId: state.activePanelId }) } } })[key]; },
@@ -29,7 +47,7 @@ async function boot(location = { origin: 'http://127.0.0.1:7692', pathname: '/',
   };
   vm.runInNewContext(await readFile(new URL('../client.js', import.meta.url), 'utf8'), sandbox);
   declaration.factory().apply(ctx);
-  return { provider: registrations.find(item => item.manifest.id === 'Page'), state, listeners };
+  return { provider: registrations.find(item => item.manifest.id === 'Page'), state, listeners, loadCache };
 }
 
 test('Page inspection returns matching session, safe URL, document and module generations', async () => {
@@ -55,6 +73,80 @@ test('offscreen and transparent elements are not reported as visible results', a
   assert.equal((await provider.query('inspect', target)).element.visible, false);
   state.left = 0; state.opacity = '0';
   assert.equal((await provider.query('inspect', target)).element.visible, false);
+});
+
+test('dsh_page reports a loaded module and a mounted offscreen element without passing the assertion', async () => {
+  const { provider, state } = await boot();
+  state.left = 10000;
+  const output = await inspectPage(provider, { selector: '.collapse' });
+  assert.equal(output.status, 'ready');
+  assert.equal(output.element.status, 'found');
+  assert.equal(output.element.matches, 1);
+  assert.equal(output.element.visible, false);
+  assert.equal(output.element.hitTarget, false);
+  assert.equal(output.verification.matchesAdvertisedModule, 'passed');
+  assert.equal(output.verification.element, 'failed');
+  assert.equal(output.verification.passed, false);
+  assert.equal(output.verification.elementMounted, true);
+  assert.equal(output.verification.elementVisibleInViewport, false);
+  assert.equal(output.verification.moduleLoaded, true);
+});
+
+test('dsh_page passes the assertion for a unique visible and unobstructed match', async () => {
+  const { provider } = await boot();
+  const output = await inspectPage(provider, { selector: '.collapse' });
+  assert.equal(output.element.matches, 1);
+  assert.equal(output.element.hitTarget, true);
+  assert.equal(output.verification.moduleLoaded, true);
+  assert.equal(output.verification.matchesAdvertisedModule, 'passed');
+  assert.equal(output.verification.elementMounted, true);
+  assert.equal(output.verification.elementVisibleInViewport, true);
+  assert.equal(output.verification.element, 'passed');
+  assert.equal(output.verification.passed, true);
+});
+
+test('dsh_page leaves selector assertions unrequested when inspecting only a module', async () => {
+  const { provider } = await boot();
+  const output = await inspectPage(provider);
+  assert.equal(output.element, undefined);
+  assert.equal(output.verification.moduleLoaded, true);
+  assert.equal(output.verification.matchesAdvertisedModule, 'passed');
+  assert.equal(output.verification.elementMounted, null);
+  assert.equal(output.verification.elementVisibleInViewport, null);
+  assert.equal(output.verification.element, 'not-requested');
+  assert.equal(output.verification.passed, true);
+});
+
+test('dsh_page distinguishes a matching Client manifest revision from module materialization', async () => {
+  const { provider, loadCache } = await boot();
+  loadCache.clear();
+  const output = await inspectPage(provider);
+  assert.equal(output.verification.moduleLoaded, false);
+  assert.equal(output.verification.matchesAdvertisedModule, 'passed');
+  assert.equal(output.verification.passed, true);
+});
+
+test('dsh_page reports multiple mounted matches without treating any as the asserted element', async () => {
+  const { provider, state } = await boot();
+  state.ambiguous = true;
+  const output = await inspectPage(provider, { selector: '.collapse' });
+  assert.equal(output.element.status, 'ambiguous');
+  assert.equal(output.element.matches, 2);
+  assert.equal(output.verification.elementMounted, true);
+  assert.equal(output.verification.elementVisibleInViewport, null);
+  assert.equal(output.verification.element, 'failed');
+  assert.equal(output.verification.passed, false);
+});
+
+test('dsh_page preserves a failed assertion for a viewport-visible match whose hit target is covered', async () => {
+  const { provider, state } = await boot();
+  state.covered = true;
+  const output = await inspectPage(provider, { selector: '.collapse' });
+  assert.equal(output.element.hitTarget, false);
+  assert.equal(output.verification.elementMounted, true);
+  assert.equal(output.verification.elementVisibleInViewport, true);
+  assert.equal(output.verification.element, 'failed');
+  assert.equal(output.verification.passed, false);
 });
 
 test('a different session or page URL returns the connected origin and pathname only', async () => {

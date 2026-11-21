@@ -49,7 +49,9 @@ Web 使用 runtime context 当前给出的 GUI 地址，不保存固定端口，
 
 确需刷新时，在 `action: "reload"` 中带上上述完整身份；调用本身有副作用，应在本次用户授权范围内。工具只向匹配的页面发固定 reload 命令，不发送按键、不导航、不打开替代页面。命令 ack 只代表接受；新文档回执和再次检查通过后，结果才是 `verified`。页面、会话或模块代次变化时拒绝旧身份。
 
-`matchesAdvertisedModule` 仅比较当前 Host 广告，`sourceBuildVerified` 不会因此变成 true。仍需结合构建/文件预检和实际行为证明新代码。未连接、识别能力缺失、元素不存在、动作未确认、需要重启等情况保留为未验证，不把成功发出命令当作完成。
+验收可见控件时，传精确 `packageName`、唯一 `selector` 和 `expectNoRenderErrors: true`。回执分别记录 `verification.moduleLoaded`（Client 模块已实例化）、`elementMounted`（能匹配元素）和 `elementVisibleInViewport`（唯一匹配项在视口可见）。例如已挂载但还在视口外，必须报告可见性未通过。只在 `moduleLoaded: true`、元素断言和 `verification.passed: true` 时确认可见验收通过；`null` 表示未观察，不能算通过。
+
+`matchesAdvertisedModule` 只比对 Client 清单与当前 Host 广告的 revision；它和 `moduleLoaded` 都不能替代源码构建或行为验证，`sourceBuildVerified` 不会因此变成 true。页面未连接、不能识别、需要重启或动作未确认时报告未验证。
 
 ## 变更与发布边界
 

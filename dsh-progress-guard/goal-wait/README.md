@@ -91,7 +91,9 @@ Agent 先向用户说清剩余的一个人工动作，再读取当前目标，�
 
 检查覆盖分发资源、语法、真实工具与会话运行时、输入授权、回执、单次恢复和持久状态重放。模型使用本地确定性 adapter，不访问外部模型，也不修改现有 profile。
 
-`0.2.2-rc.3` 默认执行 `local-chat-patch-tests`，核对原回复的折叠行为与 `data-chat-final-response` 标记。其他宿主可将 `DSH_GOAL_WAIT_CHAT_PACKAGE` 指向待验的 `@deepseek-ai/dsh-client-ui-chat` 包目录来执行同一组测试；未指定时报告 `localChatPatch: not-checked`。
+检查默认桌面安装时，先从本机补丁清单读取 `chat-final-reply-visibility` 的定义。宿主版本及 `app.asar` 的 SHA-256 与登记匹配后，再运行 `local-chat-patch-tests`，验证原回复折叠行为与 `data-chat-final-response` 标记。登记缺失、补丁待重放或归档漂移会使检查失败。
+
+`--dsh-root` 或 `DSH_GOAL_WAIT_DSH_ROOT` 指向其他宿主时，检查报告 `localChatPatch: not-checked`。显式设置 `DSH_GOAL_WAIT_CHAT_PACKAGE` 指向待验的 `@deepseek-ai/dsh-client-ui-chat` 包目录时，运行同一组能力测试，报告 `localChatPatch: explicit-package`。
 
 ### 显式跨包安装器联调
 

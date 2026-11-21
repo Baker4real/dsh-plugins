@@ -46,7 +46,9 @@ Inspect 合同缓存按 Agent 隔离，最多保留 30 秒，并随 Client graph
 
 宿主 Fetch carrier 将 Request.url 写为 `http://dsh.internal`，保留已经通过 Host/Origin/admit 与 owner-peer 检查的 Host 头；页面通道据此恢复来源。Desktop 的 `dsh-app://app/` 请求经官方转发器改发 loopback HTTP 并移除 Origin，只在显式 Desktop 模式、精确 app URL、loopback Host 且 Origin 真正缺失时接受。字符串 `null`、空 Origin、旧 app scheme 和公网 Host 都不能取得这项许可。通道不替代宿主认证。
 
-入口文件一致、Host 广告一致和真实行为一致是不同证据。`sourceBuildVerified: false` 明确表示页面工具没有替你跑源码构建。无法读取页面实际 URL 时不能拿调用者提供的 URL 充当页面身份，也不能退回窗口标题或快捷键。
+页面回执的 `verification.moduleLoaded` 报告目标 Client 模块是否已实例化；`matchesAdvertisedModule` 单独比较 Client 清单与 Host 广告的 revision。`elementMounted` 表示至少一个匹配项已挂载；`elementVisibleInViewport` 只描述唯一匹配项的视口可见性。`null` 表示未观察。遮挡时元素可以在视口内，但正向 `verification.element` 仍会失败。安装回执用 `verification.passed` 判定本次页面断言，再单独核对 `moduleLoaded`；不要把 `status: ready`、挂载或模块 revision 相等写成用户可见。
+
+`sourceBuildVerified: false` 表示工具没有验证源码构建。无法读取页面实际 URL 时不能拿调用者提供的 URL 充当页面身份，也不能退回窗口标题或快捷键。
 
 ### 绑定元素点击
 
